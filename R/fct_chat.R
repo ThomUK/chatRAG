@@ -44,13 +44,17 @@ format_chat_message <- function(role, content) {
 #' @return A `shiny.tag`.
 #' @noRd
 chat_bubble_ui <- function(role, content) {
-  bubble_class <- if (role == "user") "chat-bubble-user" else "chat-bubble-assistant"
-  label        <- if (role == "user") "You" else "Assistant"
+  bubble_class   <- if (role == "user") "chat-bubble-user" else "chat-bubble-assistant"
+  label          <- if (role == "user") "You" else "Assistant"
+  wrapper_class  <- if (role == "user") "d-flex justify-content-end mb-3" else "d-flex justify-content-start mb-3"
 
   tags$div(
-    class = paste("chat-bubble", bubble_class, "mb-3"),
-    tags$div(class = "chat-bubble-label small fw-semibold mb-1", label),
-    tags$div(class = "chat-bubble-content", content)
+    class = wrapper_class,
+    tags$div(
+      class = paste("chat-bubble", bubble_class),
+      tags$div(class = "chat-bubble-label small fw-semibold mb-1", label),
+      tags$div(class = "chat-bubble-content", content)
+    )
   )
 }
 
@@ -93,20 +97,26 @@ sources_block_ui <- function(context_chunks) {
 
 #' Render a single context window pill
 #'
-#' @param role    One of `"user"` or `"assistant"`.
-#' @param content The message text (will be truncated).
-#' @param active  Logical.  `TRUE` for messages within the rolling window.
+#' @param role       One of `"user"` or `"assistant"`.
+#' @param content    The message text (will be truncated).
+#' @param active     Logical.  `TRUE` for messages within the rolling window.
+#' @param fade_rank  Integer 1-3 (or `NULL`).  When set on an inactive pill,
+#'   adds a `pill-fade-{n}` CSS class where 1 = most recently dropped (least
+#'   faded) and 3 = oldest visible dropped message (most faded).
 #'
 #' @return A `shiny.tag`.
 #' @noRd
-context_window_pill_ui <- function(role, content, active = TRUE) {
+context_window_pill_ui <- function(role, content, active = TRUE, fade_rank = NULL) {
   role_class   <- if (role == "user") "pill-user" else "pill-assistant"
   state_class  <- if (active) "pill-active" else "pill-inactive"
   preview_text <- truncate_for_pill(content, n_words = 5L)
   role_label   <- if (role == "user") "You" else "Asst"
 
+  fade_class <- if (!is.null(fade_rank)) paste0("pill-fade-", fade_rank) else ""
+
   tags$div(
-    class = paste("context-pill", role_class, state_class, "d-flex align-items-center gap-1 mb-1 px-2 py-1 rounded"),
+    class = trimws(paste("context-pill", role_class, state_class, fade_class,
+                         "d-flex align-items-center gap-1 mb-1 px-2 py-1 rounded")),
     tags$span(class = "pill-role-label small fw-semibold", role_label),
     tags$span(class = "pill-preview small text-truncate", preview_text)
   )
@@ -155,9 +165,15 @@ context_window_panel_ui <- function(all_messages, window_size = 6L) {
     }
     active_indices <- seq(active_start, n_total)
 
-    inactive_pills <- lapply(inactive_indices, function(i) {
-      msg <- all_messages[[i]]
-      context_window_pill_ui(msg$role, msg$content, active = FALSE)
+    # Assign fade ranks: the most recently dropped gets rank 1 (least faded),
+    # the oldest shown dropped message gets the highest rank (most faded).
+    n_inactive_rendered <- length(inactive_indices)
+    inactive_pills <- lapply(seq_along(inactive_indices), function(j) {
+      i         <- inactive_indices[[j]]
+      msg       <- all_messages[[i]]
+      # rank 1 = most recent (last in inactive_indices), n = oldest
+      fade_rank <- n_inactive_rendered - j + 1L
+      context_window_pill_ui(msg$role, msg$content, active = FALSE, fade_rank = fade_rank)
     })
 
     active_pills <- lapply(active_indices, function(i) {
