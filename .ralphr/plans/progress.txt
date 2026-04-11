@@ -12,3 +12,36 @@ Status: COMPLETE (2026-04-11)
 - tests/testthat/test-app_config.R: TDD tests for get_api_key() — all 4 tests pass
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 4
+
+## Issue #3: Slice 2 — fct_embeddings
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_embeddings.R: Implemented full embedding pipeline
+  - chunk_text: character-based overlapping chunking with edge-case handling
+  - parse_pdf: pdftools wrapper that concatenates pages
+  - embed_chunks: calls Ollama nomic-embed-text, returns tibble with 6 columns
+  - build_knowledge_base: orchestrates parse→chunk→embed for multiple PDFs
+  - append_to_knowledge_base: adds one document to existing knowledge base
+  - save_knowledge_base / load_knowledge_base: saveRDS/readRDS wrappers
+  - check_ollama_running: pings localhost:11434, returns TRUE/FALSE
+  - Internal wrappers (.call_pdf_text, .call_ollama_embed, .call_ollama_ping) for test mockability
+- DESCRIPTION: moved pdftools from Imports to Suggests (requires libpoppler-cpp system lib)
+- tests/testthat/test-fct_embeddings.R: 30 tests via TDD (red→green→refactor)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 30
+
+## Issue #4: Slice 3 — fct_retrieval
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_retrieval.R: Implemented retrieval layer
+  - cosine_similarity: dot-product / product-of-norms, handles identical (1), orthogonal (0), opposite (-1)
+  - embed_query: thin wrapper around .call_ollama_embed (reused from fct_embeddings), returns numeric vector
+  - retrieve_chunks: vapply over knowledge_base$embedding, orders by similarity desc, slices top_n rows, drops embedding column, returns 6-column tibble
+- tests/testthat/test-fct_retrieval.R: 22 tests via TDD (red→green)
+  - cosine_similarity: 6 tests (scalar type, identical, orthogonal, opposite, symmetric, unit vector)
+  - embed_query: 3 tests with local_mocked_bindings (type, length, query passthrough)
+  - retrieve_chunks: 13 tests with synthetic embedding matrices (data frame, top_n rows, graceful underflow, required columns, no embedding column, ordered desc, score==1 for best, numeric scores, default top_n=5, single-row KB)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 22
