@@ -6,6 +6,15 @@
 #' @noRd
 app_server <- function(input, output, session) {
 
+  # ── Chat state (shared with Connect Your Own tab) ────────────────────────────
+  # These reactiveVals will be updated by mod_connect (Issue #10).
+  # For now they default to the anthropic key from .Renviron / golem-config.
+  active_provider <- reactiveVal("claude")
+  active_api_key  <- reactiveVal(get_api_key("anthropic"))
+
+  # Full conversation history — list of {role, content} maps
+  chat_history <- reactiveVal(list())
+
   # ── Reactive state ───────────────────────────────────────────────────────────
   embeddings_path <- app_sys("app/data/embeddings.rds")
   csv_path        <- app_sys("app/data/documents.csv")
@@ -198,6 +207,103 @@ app_server <- function(input, output, session) {
           tags$div(
             class = "alert alert-danger mt-2 mb-0",
             paste0("Upload failed: ", conditionMessage(e))
+          )
+        })
+      }
+    )
+  })
+
+  # ── Chat Tab ─────────────────────────────────────────────────────────────────
+
+  # Render the conversation bubbles
+  output$chat_messages <- renderUI({
+    history <- chat_history()
+    if (length(history) == 0L) {
+      return(tags$p(
+        class = "text-muted mt-3",
+        "No conversation yet. Ask a question below."
+      ))
+    }
+
+    # Render each message as a bubble; assistant messages also get sources
+    # (sources are stored as an attribute on the assistant message)
+    bubble_list <- lapply(history, function(msg) {
+      bubble <- chat_bubble_ui(msg$role, msg$content)
+      if (!is.null(msg$context_chunks)) {
+        tagList(bubble, sources_block_ui(msg$context_chunks))
+      } else {
+        bubble
+      }
+    })
+    tagList(bubble_list)
+  })
+
+  # Render the context window panel
+  output$context_window_panel <- renderUI({
+    context_window_panel_ui(chat_history(), window_size = 6L)
+  })
+
+  # "Thinking…" placeholder (shown while RAG call is in flight)
+  output$chat_thinking <- renderUI(NULL)
+
+  # Handle chat submission
+  observeEvent(input$chat_submit, {
+    query <- trimws(input$chat_input)
+    if (nchar(query) == 0L) return()
+
+    kb <- knowledge_base()
+    if (is.null(kb) || nrow(kb) == 0L) {
+      output$chat_thinking <- renderUI({
+        tags$div(
+          class = "alert alert-warning mt-2",
+          "No knowledge base loaded. Please build or upload documents first."
+        )
+      })
+      return()
+    }
+
+    # Append user message to history immediately so UI updates
+    current_history <- chat_history()
+    user_msg        <- format_chat_message("user", query)
+    chat_history(c(current_history, list(user_msg)))
+
+    # Clear input and show spinner
+    updateTextAreaInput(session, "chat_input", value = "")
+    output$chat_thinking <- renderUI({
+      tags$div(
+        class = "d-flex align-items-center gap-2 text-muted mt-2",
+        tags$span(
+          class = "spinner-border spinner-border-sm",
+          role  = "status"
+        ),
+        tags$span("Thinking\u2026")
+      )
+    })
+
+    tryCatch(
+      {
+        # RAG pipeline
+        query_emb      <- embed_query(query)
+        context_chunks <- retrieve_chunks(query_emb, kb, top_n = 5L)
+        payload        <- build_messages(current_history, context_chunks, query)
+
+        # Call LLM
+        reply <- call_llm(payload,
+                          provider = active_provider(),
+                          api_key  = active_api_key())
+
+        # Attach context_chunks to assistant message so sources_block_ui can use them
+        asst_msg <- format_chat_message("assistant", reply)
+        asst_msg$context_chunks <- context_chunks
+
+        chat_history(c(chat_history(), list(asst_msg)))
+        output$chat_thinking <- renderUI(NULL)
+      },
+      error = function(e) {
+        output$chat_thinking <- renderUI({
+          tags$div(
+            class = "alert alert-danger mt-2",
+            paste0("Error: ", conditionMessage(e))
           )
         })
       }

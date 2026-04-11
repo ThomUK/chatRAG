@@ -190,3 +190,118 @@ h4, h5, h6 {
   animation: tab-pulse-anim 2s ease-in-out;
   border-radius: var(--radius);
 }
+
+/* ── Chat Tab ────────────────────────────────────────────────────────────────── */
+.chat-messages-wrapper {
+  min-height: 200px;
+  max-height: 55vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  background: #fff;
+}
+
+.chat-bubble {
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius);
+  max-width: 85%;
+  word-break: break-word;
+}
+
+.chat-bubble-user {
+  background: #f0efff;
+  border: 1px solid #d4d0ff;
+  margin-left: auto;
+}
+
+.chat-bubble-assistant {
+  background: #f8f9fa;
+  border: 1px solid var(--border);
+}
+
+.chat-bubble-label {
+  font-size: 0.72rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sources-block {
+  border-left-color: #635bff !important;
+  background: #fafafa;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 0.8rem;
+  max-width: 85%;
+}
+
+.sources-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Context Window Panel ────────────────────────────────────────────────────── */
+.context-panel-wrapper {
+  position: sticky;
+  top: 1rem;
+}
+
+.context-window-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.context-pills-container {
+  max-height: 60vh;
+  overflow: hidden;
+}
+
+.context-pill {
+  font-size: 0.78rem;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.pill-active.pill-user {
+  background: #f0efff;
+  border-color: #d4d0ff;
+  color: #3730a3;
+}
+
+.pill-active.pill-assistant {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.pill-inactive {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #9ca3af !important;
+  opacity: 0.65;
+}
+
+.pill-inactive.pill-user,
+.pill-inactive.pill-assistant {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+}
+
+.pill-role-label {
+  min-width: 2.2rem;
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pill-preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

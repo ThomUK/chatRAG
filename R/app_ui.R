@@ -164,7 +164,7 @@ main_tabbed_ui <- function() {
     ),
     bslib::nav_panel(
       "Chat",
-      tags$p(class = "text-muted mt-4", "Chat tab — coming soon.")
+      chat_tab_ui()
     ),
     bslib::nav_panel(
       "Connect Your Own",
@@ -194,6 +194,64 @@ source_material_tab_ui <- function() {
       )
     ),
     DT::DTOutput("source_table")
+  )
+}
+
+
+#' Build the Chat tab content
+#'
+#' Two-column layout: chat conversation on the left, context window panel
+#' on the right.
+#'
+#' @noRd
+chat_tab_ui <- function() {
+  fluidRow(
+    # ── Left column: chat interface ───────────────────────────────────────────
+    column(
+      width = 8,
+      tags$div(
+        class = "chat-container mt-4",
+
+        # Conversation output area
+        tags$div(
+          id    = "chat-messages-wrapper",
+          class = "chat-messages-wrapper mb-3",
+          uiOutput("chat_messages")
+        ),
+
+        # "Thinking..." spinner (hidden by default)
+        uiOutput("chat_thinking"),
+
+        # Input row
+        tags$div(
+          class = "d-flex gap-2 mt-2",
+          textAreaInput(
+            inputId     = "chat_input",
+            label       = NULL,
+            placeholder = "Ask a question about the loaded documents\u2026",
+            rows        = 2,
+            width       = "100%"
+          ),
+          tags$div(
+            class = "d-flex flex-column justify-content-end",
+            actionButton(
+              inputId = "chat_submit",
+              label   = "Send",
+              class   = "btn btn-primary"
+            )
+          )
+        )
+      )
+    ),
+
+    # ── Right column: context window panel ───────────────────────────────────
+    column(
+      width = 4,
+      tags$div(
+        class = "context-panel-wrapper mt-4",
+        uiOutput("context_window_panel")
+      )
+    )
   )
 }
 
