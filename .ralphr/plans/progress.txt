@@ -45,3 +45,17 @@ Status: COMPLETE (2026-04-11)
   - retrieve_chunks: 13 tests with synthetic embedding matrices (data frame, top_n rows, graceful underflow, required columns, no embedding column, ordered desc, score==1 for best, numeric scores, default top_n=5, single-row KB)
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 22
+
+## Issue #5: Slice 4 — fct_llm
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_llm.R: Implemented full LLM integration layer
+  - build_system_prompt: fixed system prompt (cite sources, disclose fallback, boardroom tone)
+  - build_messages: 6-turn rolling window, context injection, unified {system, messages} payload
+  - call_llm: dispatches to Claude/OpenAI/Azure; streaming insertion point clearly marked
+  - test_connection: ping with minimal prompt, returns {success, message}
+  - Internal wrappers (.call_claude_api, .call_openai_api, .call_azure_api) for test mockability
+- tests/testthat/test-fct_llm.R: 43 tests via TDD (red→green)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 43
