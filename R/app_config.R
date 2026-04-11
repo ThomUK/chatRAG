@@ -42,3 +42,23 @@ get_golem_config <- function(
     use_parent = use_parent
   )
 }
+
+
+#' Get API key for a given LLM provider
+#'
+#' Retrieves the API key for the specified provider from the golem config,
+#' which resolves keys from environment variables at startup.
+#'
+#' @param provider One of "anthropic" (default), "openai", or "azure".
+#'
+#' @noRd
+get_api_key <- function(provider = "anthropic") {
+  key_name <- switch(
+    provider,
+    anthropic = "anthropic_api_key",
+    openai    = "openai_api_key",
+    azure     = "azure_openai_key",
+    stop("Unknown provider: ", provider)
+  )
+  get_golem_config(key_name)
+}

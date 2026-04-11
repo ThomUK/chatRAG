@@ -1,0 +1,14 @@
+## Issue #2: Slice 1 — Project Foundation
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- DESCRIPTION: Added all required imports (bslib, dplyr, DT, httr2, ollamar, pdftools, readr, stringr) alongside existing config, golem, shiny
+- inst/app/data/pdfs/.gitkeep: Created directory with gitkeep
+- inst/app/data/documents.csv: Created placeholder with correct columns (title, organisation, date, url, filename)
+- .gitignore: Added .Renviron, inst/app/data/embeddings.rds, inst/app/data/pdfs/
+- .Renviron.example: Created with placeholders for ANTHROPIC_API_KEY, OPENAI_API_KEY, AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT
+- inst/golem-config.yml: Added all 5 API key env vars via !expr Sys.getenv(...)
+- R/app_config.R: Added get_api_key(provider = "anthropic") helper
+- tests/testthat/test-app_config.R: TDD tests for get_api_key() — all 4 tests pass
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 4
