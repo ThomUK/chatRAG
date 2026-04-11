@@ -135,3 +135,38 @@ Status: COMPLETE (2026-04-11)
 - tests/testthat/test-fct_upload_modal.R: 29 tests via TDD (red→green)
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 29 (186 total across all test files)
+
+## Issue #9: Slice 8 — Chat Tab + Context Window Visualiser
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_chat.R: Implemented all chat business logic
+  - truncate_for_pill(text, n_words): first N words + "…", short text unchanged
+  - format_chat_message(role, content): returns {role, content} list
+  - chat_bubble_ui(role, content): renders a styled chat bubble (user right-aligned, assistant left)
+  - sources_block_ui(context_chunks): deduplicated source list below each assistant message
+  - context_window_pill_ui(role, content, active): coloured pill for user (violet) or assistant (green); greyed-out when inactive
+  - context_window_panel_ui(all_messages, window_size): full panel showing active window + last 3 dropped turns; older turns hidden
+- R/app_ui.R:
+  - chat_tab_ui(): two-column layout — chat area (col-8) + sticky context window panel (col-4)
+  - Replaced "Chat — coming soon" placeholder in main_tabbed_ui()
+  - chat input: textAreaInput + "Send" button
+  - uiOutput("chat_messages"), uiOutput("chat_thinking"), uiOutput("context_window_panel")
+- R/app_server.R:
+  - active_provider / active_api_key reactiveVals (defaults to Claude; will be driven by Issue #10)
+  - chat_history reactiveVal storing full conversation list
+  - output$chat_messages: renders bubbles + sources blocks
+  - output$context_window_panel: re-renders pill panel on every history update
+  - output$chat_thinking: spinner while API call in flight, cleared on response
+  - observeEvent(input$chat_submit): validates query → appends user msg → shows spinner →
+    embed_query → retrieve_chunks → build_messages → call_llm → appends assistant msg (with context_chunks) → clears spinner
+  - Error handling: surfaced as alert-danger in chat_thinking area
+- inst/app/www/app.css: Chat and context window styles
+  - .chat-messages-wrapper: scrollable panel, max 55vh
+  - .chat-bubble-user / .chat-bubble-assistant: distinct colours
+  - .pill-active.pill-user (violet) / .pill-active.pill-assistant (green)
+  - .pill-inactive: grey with reduced opacity
+  - Sticky context panel wrapper
+- tests/testthat/test-fct_chat.R: 32 tests via TDD (red→green)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 32 (218 total across all test files)
