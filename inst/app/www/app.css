@@ -177,3 +177,16 @@ h4, h5, h6 {
 .tab-content {
   padding-top: 0.5rem;
 }
+
+/* ── Tab pulse animation (Source Material tab after KB update) ─────────────── */
+@keyframes tab-pulse-anim {
+  0%   { background-color: transparent; }
+  25%  { background-color: rgba(99, 91, 255, 0.18); }
+  75%  { background-color: rgba(99, 91, 255, 0.18); }
+  100% { background-color: transparent; }
+}
+
+.nav-link.tab-pulse {
+  animation: tab-pulse-anim 2s ease-in-out;
+  border-radius: var(--radius);
+}

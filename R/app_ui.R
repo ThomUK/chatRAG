@@ -10,6 +10,7 @@ app_ui <- function(request) {
     golem_add_external_resources(),
     # Your application UI logic
     bslib::page_fluid(
+      shinyjs::useShinyjs(),
       tags$div(
         class = "mobile-warning",
         "\u26a0\ufe0f This app is best viewed on a larger screen (1024px or wider)."
@@ -51,8 +52,22 @@ golem_add_external_resources <- function() {
     tags$link(
       rel  = "stylesheet",
       href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-    )
+    ),
+    # Custom message handler: pulse the Source Material tab label
+    tags$script(HTML(
+      "Shiny.addCustomMessageHandler('pulse_source_tab', function(msg) {
+        var tabs = document.querySelectorAll('#main_tabs .nav-link');
+        for (var i = 0; i < tabs.length; i++) {
+          if (tabs[i].textContent.trim() === 'Source Material') {
+            tabs[i].classList.add('tab-pulse');
+            setTimeout(function(el) { el.classList.remove('tab-pulse'); }, 2000, tabs[i]);
+            break;
+          }
+        }
+      });"
+    ))
   )
+
 }
 
 
@@ -179,5 +194,60 @@ source_material_tab_ui <- function() {
       )
     ),
     DT::DTOutput("source_table")
+  )
+}
+
+
+#' Build the Upload Modal dialog
+#'
+#' Returns a `modalDialog()` containing a PDF file input and metadata fields
+#' for Title, Organisation, Date, and Public URL.
+#'
+#' @noRd
+upload_modal_ui <- function() {
+  modalDialog(
+    title = "Add Document to Knowledge Base",
+    size  = "m",
+    easyClose = FALSE,
+
+    # File upload + form fields
+    fileInput(
+      inputId  = "upload_pdf",
+      label    = "PDF File",
+      accept   = ".pdf",
+      multiple = FALSE
+    ),
+    textInput(
+      inputId     = "upload_title",
+      label       = "Title",
+      placeholder = "e.g. Annual Report 2024"
+    ),
+    textInput(
+      inputId     = "upload_org",
+      label       = "Organisation",
+      placeholder = "e.g. NHS England"
+    ),
+    textInput(
+      inputId     = "upload_date",
+      label       = "Date (YYYY-MM-DD)",
+      placeholder = "e.g. 2024-03-31"
+    ),
+    textInput(
+      inputId     = "upload_url",
+      label       = "Public URL",
+      placeholder = "https://..."
+    ),
+
+    # Progress / status area
+    uiOutput("upload_progress"),
+
+    footer = tagList(
+      modalButton("Cancel"),
+      actionButton(
+        inputId = "submit_upload",
+        label   = "Upload & Embed",
+        class   = "btn btn-primary"
+      )
+    )
   )
 }

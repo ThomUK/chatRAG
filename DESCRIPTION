@@ -15,6 +15,7 @@ Imports:
     ollamar,
     readr,
     shiny,
+    shinyjs,
     stringr
 Suggests:
     pdftools,
