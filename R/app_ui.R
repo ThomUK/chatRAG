@@ -10,6 +10,10 @@ app_ui <- function(request) {
     golem_add_external_resources(),
     # Your application UI logic
     bslib::page_fluid(
+      tags$div(
+        class = "mobile-warning",
+        "\u26a0\ufe0f This app is best viewed on a larger screen (1024px or wider)."
+      ),
       uiOutput("main_content")
     )
   )
@@ -34,9 +38,20 @@ golem_add_external_resources <- function() {
     bundle_resources(
       path = app_sys("app/www"),
       app_title = "chatRAG"
+    ),
+    tags$link(
+      rel  = "preconnect",
+      href = "https://fonts.googleapis.com"
+    ),
+    tags$link(
+      rel         = "preconnect",
+      href        = "https://fonts.gstatic.com",
+      crossorigin = NA
+    ),
+    tags$link(
+      rel  = "stylesheet",
+      href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
     )
-    # Add here other external resources
-    # for example, you can add shinyalert::useShinyalert()
   )
 }
 
@@ -122,7 +137,7 @@ welcome_screen_ui <- function(checks = NULL) {
 }
 
 
-#' Build a placeholder main tabbed UI (populated by later slices)
+#' Build the main tabbed UI
 #'
 #' @noRd
 main_tabbed_ui <- function() {
@@ -130,7 +145,7 @@ main_tabbed_ui <- function() {
     id = "main_tabs",
     bslib::nav_panel(
       "Source Material",
-      tags$p(class = "text-muted mt-4", "Source Material tab — coming soon.")
+      source_material_tab_ui()
     ),
     bslib::nav_panel(
       "Chat",
@@ -140,5 +155,29 @@ main_tabbed_ui <- function() {
       "Connect Your Own",
       tags$p(class = "text-muted mt-4", "Connect Your Own tab — coming soon.")
     )
+  )
+}
+
+
+#' Build the Source Material tab content
+#'
+#' @noRd
+source_material_tab_ui <- function() {
+  tagList(
+    tags$div(
+      class = "d-flex justify-content-between align-items-center mt-4 mb-3",
+      tags$p(
+        class = "text-muted mb-0",
+        style = "max-width: 700px;",
+        "Every answer this assistant gives is grounded in real documents \u2014 the board papers and reports listed below.",
+        "Nothing is invented or assumed. You can read the original source behind any answer by clicking the document link directly."
+      ),
+      actionButton(
+        inputId = "open_upload_modal",
+        label   = "Add to Knowledge Base",
+        class   = "btn btn-outline-primary btn-sm"
+      )
+    ),
+    DT::DTOutput("source_table")
   )
 }

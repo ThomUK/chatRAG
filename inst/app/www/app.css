@@ -1,0 +1,179 @@
+/* ── Fonts ──────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+:root {
+  --color-bg:          #f6f9fc;   /* Stripe off-white */
+  --color-surface:     #ffffff;
+  --color-border:      #e3e8ef;
+  --color-text:        #1a1f36;
+  --color-muted:       #697386;
+  --color-accent:      #635bff;   /* Stripe violet */
+  --color-accent-soft: #ede9ff;
+  --radius:            8px;
+  --shadow-sm:         0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:         0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+  --max-content:       1440px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+.container-fluid {
+  max-width: var(--max-content);
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────────── */
+.nav-tabs {
+  border-bottom: 2px solid var(--color-border);
+  gap: 0.25rem;
+}
+
+.nav-tabs .nav-link {
+  color: var(--color-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 0.6rem 1rem;
+  font-weight: 500;
+  border-radius: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.nav-tabs .nav-link:hover {
+  color: var(--color-text);
+  border-bottom-color: var(--color-border);
+  background: transparent;
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+  background: transparent;
+  font-weight: 600;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: 500;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: #5144d3;
+  border-color: #5144d3;
+}
+
+.btn-outline-primary {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: 500;
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────────── */
+.dataTables_wrapper {
+  font-size: 13px;
+}
+
+table.dataTable thead th {
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--color-border) !important;
+}
+
+table.dataTable tbody tr {
+  background: var(--color-surface) !important;
+  transition: background 0.1s;
+}
+
+table.dataTable tbody tr:hover {
+  background: #f8f9ff !important;
+}
+
+table.dataTable tbody td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.6rem 0.75rem;
+  vertical-align: middle;
+}
+
+table.dataTable a {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+table.dataTable a:hover {
+  text-decoration: underline;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────────────── */
+h4, h5, h6 {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.text-muted {
+  color: var(--color-muted) !important;
+}
+
+/* ── Mobile warning ─────────────────────────────────────────────────────────── */
+.mobile-warning {
+  display: none;
+  padding: 0.75rem 1rem;
+  background: #fff8e1;
+  border-left: 4px solid #f9a825;
+  color: #5f4400;
+  font-size: 13px;
+  margin-bottom: 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+@media (max-width: 1023px) {
+  .mobile-warning {
+    display: block;
+  }
+}
+
+/* ── Spacing ────────────────────────────────────────────────────────────────── */
+.tab-content {
+  padding-top: 0.5rem;
+}

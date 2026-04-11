@@ -39,6 +39,25 @@ app_server <- function(input, output, session) {
     }
   })
 
+  # ── Source Material tab ───────────────────────────────────────────────────────
+  output$source_table <- DT::renderDT({
+    csv_path  <- app_sys("app/data/documents.csv")
+    documents <- load_documents_csv(csv_path)
+    table_data <- prepare_source_table(documents)
+
+    DT::datatable(
+      table_data,
+      escape    = FALSE,
+      rownames  = FALSE,
+      selection = "none",
+      options   = list(
+        pageLength = 25,
+        dom        = "tp",
+        order      = list(list(0, "asc"))
+      )
+    )
+  })
+
   # ── Build Knowledge Base ─────────────────────────────────────────────────────
   observeEvent(input$build_kb, {
     pdf_dir   <- app_sys("app/data/pdfs")

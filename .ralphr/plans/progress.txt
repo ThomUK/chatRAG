@@ -59,3 +59,54 @@ Status: COMPLETE (2026-04-11)
 - tests/testthat/test-fct_llm.R: 43 tests via TDD (red→green)
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 43
+
+## Issue #6: Slice 5 — Welcome / Setup Screen
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_welcome.R: Implemented all welcome-screen business logic
+  - .list_pdf_files, .read_documents_csv, .check_file_exists: filesystem wrappers for mockability
+  - check_ollama_status(): delegates to check_ollama_running(), returns {ok, message}
+  - check_pdfs_status(pdf_dir): checks for ≥1 .pdf in pdfs directory
+  - check_documents_csv_status(csv_path): checks file exists, is parseable, and has required columns
+  - run_prerequisite_checks(pdf_dir, csv_path): orchestrates all three checks
+  - all_checks_pass(checks): returns TRUE only when all three checks ok=TRUE
+  - embeddings_file_exists(rds_path): thin wrapper around .check_file_exists
+- R/app_ui.R: Replaced golem welcome page with bslib::page_fluid + uiOutput("main_content")
+  - prerequisite_row(): renders a single check row with pass/fail styling
+  - welcome_screen_ui(checks): renders the full welcome card; build button disabled until all pass
+  - main_tabbed_ui(): placeholder 3-tab UI (Source Material, Chat, Connect Your Own)
+- R/app_server.R: Full welcome screen server logic
+  - kb_ready reactiveVal seeded from embeddings_file_exists() at startup
+  - reactiveTimer(3000) refreshes prerequisite checks every 3 s while on welcome screen
+  - output$main_content switches between welcome_screen_ui and main_tabbed_ui
+  - observeEvent(input$build_kb): runs build_knowledge_base → save_knowledge_base, shows inline
+    progress messages ("Parsing PDFs…", "Creating embeddings…", "Updating knowledge base…"),
+    transitions to main UI on success, shows error on failure
+- tests/testthat/test-fct_welcome.R: 38 tests via TDD (red→green)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 38 (137 total across all test files)
+
+## Issue #7: Slice 6 — App Shell + Source Material Tab
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_source_material.R: Implemented source material business logic
+  - load_documents_csv(csv_path): reads documents.csv via readr, returns tibble with 5 columns
+  - prepare_source_table(documents): renames display columns, builds HTML anchor for Source, drops internal columns
+- R/app_ui.R:
+  - main_tabbed_ui(): replaced placeholder Source Material tab with source_material_tab_ui()
+  - source_material_tab_ui(): intro paragraph + DT::DTOutput("source_table") + "Add to Knowledge Base" button in top-right
+  - mobile-warning banner via CSS class (shown below 1024px via media query)
+  - golem_add_external_resources(): added Inter font preconnect + stylesheet <link> tags
+- R/app_server.R: Added output$source_table renderDT block
+  - Loads documents.csv via load_documents_csv()
+  - Prepares table via prepare_source_table()
+  - DT::datatable with escape=FALSE (for HTML links), sortable, no row names
+- inst/app/www/app.css: Stripe-dashboard aesthetic
+  - Inter font, off-white background (#f6f9fc), muted accents (#635bff violet)
+  - Custom nav-tabs, card, button, and DataTable styles
+  - Mobile warning block shown via @media (max-width: 1023px)
+- tests/testthat/test-fct_source_material.R: 20 tests via TDD (red→green)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 20 (157 total across all test files)
