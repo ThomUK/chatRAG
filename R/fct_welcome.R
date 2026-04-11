@@ -15,6 +15,11 @@
   file.exists(path)
 }
 
+#' @noRd
+.call_ollama_list_models <- function() {
+  ollamar::list_models()
+}
+
 
 # Public API -------------------------------------------------------------------
 
@@ -30,6 +35,34 @@ check_ollama_status <- function() {
       "Ollama is running"
     } else {
       "Ollama is not running. Start it with: ollama serve"
+    }
+  )
+}
+
+
+#' Check whether the nomic-embed-text model is available in Ollama
+#'
+#' @return A named list: `ok` (logical) and `message` (character).
+#' @noRd
+check_nomic_model_status <- function() {
+  tryCatch(
+    {
+      models <- .call_ollama_list_models()
+      has_model <- any(grepl("nomic-embed-text", models$name, fixed = TRUE))
+      list(
+        ok = has_model,
+        message = if (has_model) {
+          "nomic-embed-text model is available"
+        } else {
+          "nomic-embed-text not found. To install: open the Command Prompt(cmd), type 'ollama pull nomic-embed-text' and hit Enter."
+        }
+      )
+    },
+    error = function(e) {
+      list(
+        ok = FALSE,
+        message = "Could not check models \u2014 is Ollama running?"
+      )
     }
   )
 }
@@ -120,6 +153,7 @@ run_prerequisite_checks <- function(
 ) {
   list(
     ollama = check_ollama_status(),
+    nomic_model = check_nomic_model_status(),
     pdfs = check_pdfs_status(pdf_dir),
     documents_csv = check_documents_csv_status(csv_path)
   )

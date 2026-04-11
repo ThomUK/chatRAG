@@ -132,6 +132,7 @@ welcome_screen_ui <- function(checks = NULL) {
       } else {
         tagList(
           prerequisite_row("Ollama running", checks$ollama),
+          prerequisite_row("nomic-embed-text model", checks$nomic_model),
           prerequisite_row("PDFs present", checks$pdfs),
           prerequisite_row("documents.csv valid", checks$documents_csv)
         )

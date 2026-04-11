@@ -48,6 +48,58 @@ test_that("check_ollama_status message mentions 'ollama serve' when not running"
   expect_match(result$message, "ollama serve", ignore.case = TRUE)
 })
 
+# ── check_nomic_model_status ──────────────────────────────────────────────────
+
+test_that("check_nomic_model_status returns a list with ok and message", {
+  local_mocked_bindings(
+    .call_ollama_list_models = function() data.frame(name = "nomic-embed-text:latest")
+  )
+  result <- check_nomic_model_status()
+  expect_type(result, "list")
+  expect_true("ok" %in% names(result))
+  expect_true("message" %in% names(result))
+})
+
+test_that("check_nomic_model_status ok=TRUE when nomic-embed-text is available", {
+  local_mocked_bindings(
+    .call_ollama_list_models = function() data.frame(name = "nomic-embed-text:latest")
+  )
+  result <- check_nomic_model_status()
+  expect_true(result$ok)
+})
+
+test_that("check_nomic_model_status ok=TRUE when model listed without tag", {
+  local_mocked_bindings(
+    .call_ollama_list_models = function() data.frame(name = "nomic-embed-text")
+  )
+  result <- check_nomic_model_status()
+  expect_true(result$ok)
+})
+
+test_that("check_nomic_model_status ok=FALSE when nomic-embed-text is absent", {
+  local_mocked_bindings(
+    .call_ollama_list_models = function() data.frame(name = "llama3:latest")
+  )
+  result <- check_nomic_model_status()
+  expect_false(result$ok)
+})
+
+test_that("check_nomic_model_status failure message mentions ollama pull", {
+  local_mocked_bindings(
+    .call_ollama_list_models = function() data.frame(name = "llama3:latest")
+  )
+  result <- check_nomic_model_status()
+  expect_match(result$message, "ollama pull", ignore.case = TRUE)
+})
+
+test_that("check_nomic_model_status ok=FALSE when list_models errors", {
+  local_mocked_bindings(
+    .call_ollama_list_models = function() stop("connection refused")
+  )
+  result <- check_nomic_model_status()
+  expect_false(result$ok)
+})
+
 # ── check_pdfs_status ─────────────────────────────────────────────────────────
 
 test_that("check_pdfs_status returns a list with ok and message", {
@@ -167,22 +219,24 @@ test_that("check_documents_csv_status message mentions row count when ok", {
 
 # ── run_prerequisite_checks ───────────────────────────────────────────────────
 
-test_that("run_prerequisite_checks returns a list with three named elements", {
+test_that("run_prerequisite_checks returns a list with four named elements", {
   local_mocked_bindings(
-    check_ollama_status = function() list(ok = TRUE, message = "ok"),
-    check_pdfs_status = function(pdf_dir) list(ok = TRUE, message = "ok"),
+    check_ollama_status        = function() list(ok = TRUE, message = "ok"),
+    check_nomic_model_status   = function() list(ok = TRUE, message = "ok"),
+    check_pdfs_status          = function(pdf_dir) list(ok = TRUE, message = "ok"),
     check_documents_csv_status = function(csv_path) list(ok = TRUE, message = "ok")
   )
   result <- run_prerequisite_checks("dir", "path.csv")
   expect_type(result, "list")
-  expect_setequal(names(result), c("ollama", "pdfs", "documents_csv"))
+  expect_setequal(names(result), c("ollama", "nomic_model", "pdfs", "documents_csv"))
 })
 
 test_that("run_prerequisite_checks passes pdf_dir and csv_path through", {
   captured <- list()
   local_mocked_bindings(
-    check_ollama_status = function() list(ok = TRUE, message = "ok"),
-    check_pdfs_status = function(pdf_dir) {
+    check_ollama_status        = function() list(ok = TRUE, message = "ok"),
+    check_nomic_model_status   = function() list(ok = TRUE, message = "ok"),
+    check_pdfs_status          = function(pdf_dir) {
       captured[["pdf_dir"]] <<- pdf_dir
       list(ok = TRUE, message = "ok")
     },
