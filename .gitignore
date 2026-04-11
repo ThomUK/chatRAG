@@ -5,3 +5,7 @@
 .DS_Store
 .quarto
 .ralphr/
+.Renviron
+inst/app/data/embeddings.rds
+inst/app/data/pdfs/*
+!inst/app/data/pdfs/.gitkeep

@@ -2,6 +2,11 @@ default:
   golem_name: chatRAG
   golem_version: 0.0.0.9000
   app_prod: no
+  anthropic_api_key: !expr Sys.getenv("ANTHROPIC_API_KEY")
+  openai_api_key: !expr Sys.getenv("OPENAI_API_KEY")
+  azure_openai_key: !expr Sys.getenv("AZURE_OPENAI_KEY")
+  azure_openai_endpoint: !expr Sys.getenv("AZURE_OPENAI_ENDPOINT")
+  azure_openai_deployment: !expr Sys.getenv("AZURE_OPENAI_DEPLOYMENT")
 production:
   app_prod: yes
 dev:
