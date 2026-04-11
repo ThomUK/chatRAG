@@ -20,12 +20,12 @@
 ##
 golem::fill_desc(
   pkg_name = "chatRAG", # The name of the golem package containing the app (typically lowercase, no underscore or periods)
-  pkg_title = "PKG_TITLE", # What the Package Does (One Line, Title Case, No Period)
-  pkg_description = "PKG_DESC.", # What the package does (one paragraph).
+  pkg_title = "Chat To Your Organisation's Documents", # What the Package Does (One Line, Title Case, No Period)
+  pkg_description = "chatRAG is a lightweight demo of a Retrieval-Augmented Generation (RAG) system. It's not a production RAG, but is designed to explain the technology and capture imaginations.", # What the package does (one paragraph).
   authors = person(
-    given = "AUTHOR_FIRST", # Your First Name
-    family = "AUTHOR_LAST", # Your Last Name
-    email = "AUTHOR@MAIL.COM", # Your email
+    given = "Tom", # Your First Name
+    family = "Smith", # Your Last Name
+    email = "tomsmith_uk@hotmail.com", # Your email
     role = c("aut", "cre") # Your role (here author/creator)
   ),
   repo_url = NULL, # The URL of the GitHub repo (optional),
@@ -38,8 +38,8 @@ golem::install_dev_deps()
 
 ## Create Common Files ----
 ## See ?usethis for more information
-usethis::use_mit_license("Golem User") # You can set another license here
-golem::use_readme_rmd(open = FALSE)
+usethis::use_mit_license() # You can set another license here
+golem::use_readme_rmd(open = TRUE)
 devtools::build_readme()
 # Note that `contact` is required since usethis version 2.1.5
 # If your {usethis} version is older, you can remove that param

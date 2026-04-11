@@ -1,17 +1,14 @@
 Package: chatRAG
-Title: An Amazing Shiny App
+Title: Chat To Your Organisation's Documents
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "firstname",
-           family = "lastname",
-           role = c("aut", "cre"),
-           email = "your@email.com")
-Description: What the package does (one paragraph).
-License: What license is it under?
+    person("Tom", "Smith", , "tomsmith_uk@hotmail.com", role = c("aut", "cre"))
+Description: chatRAG is a lightweight demo of a Retrieval-Augmented Generation (RAG) system. It's not a production RAG, but is designed to explain the technology and capture imaginations.
+License: MIT + file LICENSE
 Imports: 
     config,
     golem,
     shiny
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.1
+RoxygenNote: 7.3.3
