@@ -7,8 +7,6 @@
 app_server <- function(input, output, session) {
 
   # ── Chat state (shared with Connect Your Own tab) ────────────────────────────
-  # These reactiveVals will be updated by mod_connect (Issue #10).
-  # For now they default to the anthropic key from .Renviron / golem-config.
   active_provider <- reactiveVal("claude")
   active_api_key  <- reactiveVal(get_api_key("anthropic"))
 
@@ -308,6 +306,83 @@ app_server <- function(input, output, session) {
         })
       }
     )
+  })
+
+  # ── Connect Your Own Tab ─────────────────────────────────────────────────────
+
+  # Show/hide Azure-specific fields when provider changes
+  observe({
+    req(input$connect_provider)
+    if (input$connect_provider == "azure") {
+      shinyjs::show("connect_azure_fields")
+    } else {
+      shinyjs::hide("connect_azure_fields")
+    }
+  })
+
+  # Test Connection button handler
+  observeEvent(input$connect_test, {
+    provider <- input$connect_provider
+    api_key  <- trimws(if (is.null(input$connect_api_key)) "" else input$connect_api_key)
+
+    if (nchar(api_key) == 0L) {
+      output$connect_status <- renderUI({
+        tags$div(
+          class = "alert alert-warning mt-3 mb-0",
+          "Please enter an API key before testing."
+        )
+      })
+      return()
+    }
+
+    # Show spinner while testing
+    output$connect_status <- renderUI({
+      tags$div(
+        class = "d-flex align-items-center gap-2 text-muted mt-3",
+        tags$span(
+          class = "spinner-border spinner-border-sm",
+          role  = "status"
+        ),
+        tags$span("Testing connection\u2026")
+      )
+    })
+
+    # Build extra args for Azure
+    extra_args <- if (provider == "azure") {
+      list(
+        endpoint   = trimws(if (is.null(input$connect_azure_endpoint))   "" else input$connect_azure_endpoint),
+        deployment = trimws(if (is.null(input$connect_azure_deployment)) "" else input$connect_azure_deployment)
+      )
+    } else {
+      list()
+    }
+
+    result <- do.call(test_connection, c(
+      list(provider = provider, api_key = api_key),
+      extra_args
+    ))
+
+    output$connect_status <- renderUI({
+      connection_status_ui(result, provider)
+    })
+
+    # On success: update active credentials and reset chat history
+    if (isTRUE(result$success)) {
+      active_provider(provider)
+      active_api_key(api_key)
+      chat_history(list())
+
+      # Show confirmation banner after the status update
+      output$connect_status <- renderUI({
+        tagList(
+          connection_status_ui(result, provider),
+          tags$div(
+            class = "alert alert-info mt-2 mb-0",
+            "Now using your API key \u2014 conversation reset."
+          )
+        )
+      })
+    }
   })
 
   # ── Build Knowledge Base ─────────────────────────────────────────────────────

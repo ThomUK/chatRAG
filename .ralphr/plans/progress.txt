@@ -170,3 +170,29 @@ Status: COMPLETE (2026-04-11)
 - tests/testthat/test-fct_chat.R: 32 tests via TDD (red→green)
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 32 (218 total across all test files)
+
+## Issue #10: Slice 9 — Connect Your Own Tab
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_connect.R: Implemented Connect Your Own tab business logic and static UI
+  - provider_label(provider): maps "claude"/"openai"/"azure" to display labels
+  - connection_status_ui(result, provider): success (alert-success) or failure (alert-danger) tag
+  - connect_your_own_tab_ui(): full tab UI — provider selectInput, password API key input,
+    Azure-only endpoint/deployment fields (shown/hidden via shinyjs), Test Connection button,
+    uiOutput("connect_status"), privacy paragraph (what is sent vs stays local)
+- R/app_ui.R:
+  - main_tabbed_ui(): replaced "Connect Your Own — coming soon" placeholder with connect_your_own_tab_ui()
+- R/app_server.R:
+  - Removed stale Issue #10 comment from active_provider/active_api_key reactiveVals
+  - observe(): shows/hides #connect_azure_fields via shinyjs based on connect_provider input
+  - observeEvent(input$connect_test):
+    - Validates API key is non-empty
+    - Shows spinner while testing
+    - Calls test_connection() with provider, api_key, and Azure extras
+    - Renders connection_status_ui() in connect_status output
+    - On success: updates active_provider/active_api_key, clears chat_history,
+      shows additional "Now using your API key — conversation reset" banner
+- tests/testthat/test-fct_connect.R: 23 tests via TDD (red→green)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 23 (241 total across all test files)

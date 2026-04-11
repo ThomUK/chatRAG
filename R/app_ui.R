@@ -168,7 +168,7 @@ main_tabbed_ui <- function() {
     ),
     bslib::nav_panel(
       "Connect Your Own",
-      tags$p(class = "text-muted mt-4", "Connect Your Own tab — coming soon.")
+      connect_your_own_tab_ui()
     )
   )
 }
