@@ -400,7 +400,8 @@ app_server <- function(input, output, session) {
         })
 
         pdf_files <- list.files(pdf_dir, pattern = "\\.pdf$",
-                                ignore.case = TRUE, full.names = TRUE)
+                                ignore.case = TRUE, full.names = TRUE,
+                                recursive = TRUE)
 
         output$build_progress <- renderUI({
           tagList(

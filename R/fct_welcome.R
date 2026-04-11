@@ -2,7 +2,7 @@
 
 #' @noRd
 .list_pdf_files <- function(pdf_dir) {
-  list.files(pdf_dir, pattern = "\\.pdf$", ignore.case = TRUE)
+  list.files(pdf_dir, pattern = "\\.pdf$", ignore.case = TRUE, recursive = TRUE)
 }
 
 #' @noRd
@@ -25,7 +25,7 @@
 check_ollama_status <- function() {
   running <- check_ollama_running()
   list(
-    ok      = running,
+    ok = running,
     message = if (running) {
       "Ollama is running"
     } else {
@@ -45,13 +45,13 @@ check_pdfs_status <- function(
   pdf_dir = app_sys("app/data/pdfs")
 ) {
   files <- .list_pdf_files(pdf_dir)
-  ok    <- length(files) > 0
+  ok <- length(files) > 0
   list(
-    ok      = ok,
+    ok = ok,
     message = if (ok) {
       paste0(length(files), " PDF(s) found in the PDFs folder")
     } else {
-      "No PDFs found. Add PDF files to inst/app/data/pdfs/ and restart."
+      "No PDFs found. Add PDF files to inst/app/data/pdfs/ and restart. Add subdirectories to organise your files if needed."
     }
   )
 }
@@ -68,7 +68,7 @@ check_documents_csv_status <- function(
 ) {
   if (!.check_file_exists(csv_path)) {
     return(list(
-      ok      = FALSE,
+      ok = FALSE,
       message = "documents.csv not found. Create it at inst/app/data/documents.csv."
     ))
   }
@@ -77,11 +77,11 @@ check_documents_csv_status <- function(
 
   tryCatch(
     {
-      df      <- .read_documents_csv(csv_path)
+      df <- .read_documents_csv(csv_path)
       missing <- setdiff(required_cols, names(df))
       if (length(missing) > 0) {
         return(list(
-          ok      = FALSE,
+          ok = FALSE,
           message = paste0(
             "documents.csv is missing columns: ",
             paste(missing, collapse = ", ")
@@ -89,14 +89,17 @@ check_documents_csv_status <- function(
         ))
       }
       list(
-        ok      = TRUE,
+        ok = TRUE,
         message = paste0("documents.csv found with ", nrow(df), " document(s)")
       )
     },
     error = function(e) {
       list(
-        ok      = FALSE,
-        message = paste0("documents.csv could not be parsed: ", conditionMessage(e))
+        ok = FALSE,
+        message = paste0(
+          "documents.csv could not be parsed: ",
+          conditionMessage(e)
+        )
       )
     }
   )
@@ -112,12 +115,12 @@ check_documents_csv_status <- function(
 #'   each a list with `ok` and `message`.
 #' @noRd
 run_prerequisite_checks <- function(
-  pdf_dir  = app_sys("app/data/pdfs"),
+  pdf_dir = app_sys("app/data/pdfs"),
   csv_path = app_sys("app/data/documents.csv")
 ) {
   list(
-    ollama        = check_ollama_status(),
-    pdfs          = check_pdfs_status(pdf_dir),
+    ollama = check_ollama_status(),
+    pdfs = check_pdfs_status(pdf_dir),
     documents_csv = check_documents_csv_status(csv_path)
   )
 }
