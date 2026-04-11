@@ -97,7 +97,8 @@ check_pdfs_status <- function(
 #' @return A named list: `ok` (logical) and `message` (character).
 #' @noRd
 check_documents_csv_status <- function(
-  csv_path = app_sys("app/data/documents.csv")
+  csv_path = app_sys("app/data/documents.csv"),
+  pdf_dir  = app_sys("app/data/pdfs")
 ) {
   if (!.check_file_exists(csv_path)) {
     return(list(
@@ -111,16 +112,54 @@ check_documents_csv_status <- function(
   tryCatch(
     {
       df <- .read_documents_csv(csv_path)
-      missing <- setdiff(required_cols, names(df))
-      if (length(missing) > 0) {
+
+      missing_cols <- setdiff(required_cols, names(df))
+      if (length(missing_cols) > 0) {
         return(list(
           ok = FALSE,
           message = paste0(
             "documents.csv is missing columns: ",
-            paste(missing, collapse = ", ")
+            paste(missing_cols, collapse = ", ")
           )
         ))
       }
+
+      if (nrow(df) == 0L) {
+        return(list(
+          ok = FALSE,
+          message = "documents.csv has no entries. Add a row for each PDF in the pdfs folder."
+        ))
+      }
+
+      # Cross-reference CSV filenames against PDFs present on disk
+      pdf_files     <- basename(.list_pdf_files(pdf_dir))
+      csv_filenames <- df$filename
+
+      pdfs_without_entry  <- setdiff(pdf_files,     csv_filenames)
+      entries_without_pdf <- setdiff(csv_filenames, pdf_files)
+
+      if (length(pdfs_without_entry) > 0) {
+        return(list(
+          ok = FALSE,
+          message = paste0(
+            length(pdfs_without_entry),
+            " PDF(s) have no entry in documents.csv: ",
+            paste(pdfs_without_entry, collapse = ", ")
+          )
+        ))
+      }
+
+      if (length(entries_without_pdf) > 0) {
+        return(list(
+          ok = FALSE,
+          message = paste0(
+            length(entries_without_pdf),
+            " documents.csv entry(ies) have no matching PDF: ",
+            paste(entries_without_pdf, collapse = ", ")
+          )
+        ))
+      }
+
       list(
         ok = TRUE,
         message = paste0("documents.csv found with ", nrow(df), " document(s)")
@@ -155,7 +194,7 @@ run_prerequisite_checks <- function(
     ollama = check_ollama_status(),
     nomic_model = check_nomic_model_status(),
     pdfs = check_pdfs_status(pdf_dir),
-    documents_csv = check_documents_csv_status(csv_path)
+    documents_csv = check_documents_csv_status(csv_path, pdf_dir)
   )
 }
 

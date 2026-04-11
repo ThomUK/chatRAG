@@ -146,15 +146,22 @@ test_that("check_pdfs_status failure message explains how to resolve", {
 
 # ── check_documents_csv_status ────────────────────────────────────────────────
 
+# Helper: a valid single-row CSV data frame whose filename matches one PDF
+valid_csv_df <- function(filename = "doc.pdf") {
+  data.frame(
+    title = "T", organisation = "O", date = "D",
+    url = "U", filename = filename,
+    stringsAsFactors = FALSE
+  )
+}
+
 test_that("check_documents_csv_status returns a list with ok and message", {
   local_mocked_bindings(
-    .check_file_exists = function(path) TRUE,
-    .read_documents_csv = function(path) {
-      data.frame(title = "t", organisation = "o", date = "d",
-                 url = "u", filename = "f", stringsAsFactors = FALSE)
-    }
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) valid_csv_df("doc.pdf"),
+    .list_pdf_files     = function(pdf_dir) "doc.pdf"
   )
-  result <- check_documents_csv_status("dummy.csv")
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
   expect_type(result, "list")
   expect_true("ok" %in% names(result))
   expect_true("message" %in% names(result))
@@ -164,56 +171,93 @@ test_that("check_documents_csv_status ok=FALSE when file does not exist", {
   local_mocked_bindings(
     .check_file_exists = function(path) FALSE
   )
-  result <- check_documents_csv_status("dummy.csv")
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
   expect_false(result$ok)
 })
 
-test_that("check_documents_csv_status ok=TRUE when file exists and is parseable", {
+test_that("check_documents_csv_status ok=TRUE when CSV and PDFs match", {
   local_mocked_bindings(
-    .check_file_exists = function(path) TRUE,
-    .read_documents_csv = function(path) {
-      data.frame(title = "t", organisation = "o", date = "d",
-                 url = "u", filename = "f", stringsAsFactors = FALSE)
-    }
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) valid_csv_df("doc.pdf"),
+    .list_pdf_files     = function(pdf_dir) "doc.pdf"
   )
-  result <- check_documents_csv_status("dummy.csv")
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
   expect_true(result$ok)
 })
 
 test_that("check_documents_csv_status ok=FALSE when required columns missing", {
   local_mocked_bindings(
-    .check_file_exists = function(path) TRUE,
-    .read_documents_csv = function(path) {
-      data.frame(title = "t", stringsAsFactors = FALSE)
-    }
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) data.frame(title = "t", stringsAsFactors = FALSE),
+    .list_pdf_files     = function(pdf_dir) character(0)
   )
-  result <- check_documents_csv_status("dummy.csv")
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
   expect_false(result$ok)
   expect_match(result$message, "missing", ignore.case = TRUE)
 })
 
+test_that("check_documents_csv_status ok=FALSE when CSV has zero rows", {
+  local_mocked_bindings(
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) {
+      data.frame(title = character(0), organisation = character(0),
+                 date = character(0), url = character(0),
+                 filename = character(0), stringsAsFactors = FALSE)
+    },
+    .list_pdf_files     = function(pdf_dir) character(0)
+  )
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
+  expect_false(result$ok)
+  expect_match(result$message, "no entries", ignore.case = TRUE)
+})
+
+test_that("check_documents_csv_status ok=FALSE when PDF has no CSV entry", {
+  local_mocked_bindings(
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) valid_csv_df("other.pdf"),
+    .list_pdf_files     = function(pdf_dir) "missing.pdf"
+  )
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
+  expect_false(result$ok)
+  expect_match(result$message, "missing.pdf")
+})
+
+test_that("check_documents_csv_status ok=FALSE when CSV entry has no matching PDF", {
+  local_mocked_bindings(
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) valid_csv_df("ghost.pdf"),
+    .list_pdf_files     = function(pdf_dir) character(0)
+  )
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
+  expect_false(result$ok)
+  expect_match(result$message, "ghost.pdf")
+})
+
 test_that("check_documents_csv_status ok=FALSE when CSV cannot be parsed", {
   local_mocked_bindings(
-    .check_file_exists = function(path) TRUE,
-    .read_documents_csv = function(path) stop("parse error")
+    .check_file_exists  = function(path) TRUE,
+    .read_documents_csv = function(path) stop("parse error"),
+    .list_pdf_files     = function(pdf_dir) character(0)
   )
-  result <- check_documents_csv_status("dummy.csv")
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
   expect_false(result$ok)
   expect_match(result$message, "parse", ignore.case = TRUE)
 })
 
 test_that("check_documents_csv_status message mentions row count when ok", {
   local_mocked_bindings(
-    .check_file_exists = function(path) TRUE,
+    .check_file_exists  = function(path) TRUE,
     .read_documents_csv = function(path) {
       data.frame(
         title = c("t1", "t2"), organisation = c("o", "o"),
-        date = c("d", "d"), url = c("u", "u"), filename = c("f", "f"),
+        date = c("d", "d"), url = c("u", "u"),
+        filename = c("a.pdf", "b.pdf"),
         stringsAsFactors = FALSE
       )
-    }
+    },
+    .list_pdf_files     = function(pdf_dir) c("a.pdf", "b.pdf")
   )
-  result <- check_documents_csv_status("dummy.csv")
+  result <- check_documents_csv_status("dummy.csv", "dummy/dir")
   expect_match(result$message, "2")
 })
 
@@ -224,7 +268,7 @@ test_that("run_prerequisite_checks returns a list with four named elements", {
     check_ollama_status        = function() list(ok = TRUE, message = "ok"),
     check_nomic_model_status   = function() list(ok = TRUE, message = "ok"),
     check_pdfs_status          = function(pdf_dir) list(ok = TRUE, message = "ok"),
-    check_documents_csv_status = function(csv_path) list(ok = TRUE, message = "ok")
+    check_documents_csv_status = function(csv_path, pdf_dir) list(ok = TRUE, message = "ok")
   )
   result <- run_prerequisite_checks("dir", "path.csv")
   expect_type(result, "list")
@@ -240,7 +284,7 @@ test_that("run_prerequisite_checks passes pdf_dir and csv_path through", {
       captured[["pdf_dir"]] <<- pdf_dir
       list(ok = TRUE, message = "ok")
     },
-    check_documents_csv_status = function(csv_path) {
+    check_documents_csv_status = function(csv_path, pdf_dir) {
       captured[["csv_path"]] <<- csv_path
       list(ok = TRUE, message = "ok")
     }

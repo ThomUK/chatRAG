@@ -46,6 +46,11 @@ app_server <- function(input, output, session) {
     }
   })
 
+  # Open documents.csv in Excel (Windows shell default handler)
+  observeEvent(input$open_csv_excel, {
+    shell.exec(normalizePath(csv_path))
+  })
+
   # ── Main content ─────────────────────────────────────────────────────────────
   output$main_content <- renderUI({
     if (kb_ready()) {

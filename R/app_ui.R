@@ -134,7 +134,14 @@ welcome_screen_ui <- function(checks = NULL) {
           prerequisite_row("Ollama running", checks$ollama),
           prerequisite_row("nomic-embed-text model", checks$nomic_model),
           prerequisite_row("PDFs present", checks$pdfs),
-          prerequisite_row("documents.csv valid", checks$documents_csv)
+          prerequisite_row("documents.csv valid", checks$documents_csv),
+          if (!isTRUE(checks$documents_csv$ok)) {
+            actionButton(
+              inputId = "open_csv_excel",
+              label   = "Open documents.csv in Excel",
+              class   = "btn btn-sm btn-outline-secondary mb-3"
+            )
+          }
         )
       },
 
