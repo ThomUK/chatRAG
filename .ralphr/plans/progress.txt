@@ -110,3 +110,28 @@ Status: COMPLETE (2026-04-11)
 - tests/testthat/test-fct_source_material.R: 20 tests via TDD (red→green)
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 20 (157 total across all test files)
+
+## Issue #8: Slice 7 — Upload Modal
+Status: COMPLETE (2026-04-11)
+
+### Changes made:
+- R/fct_upload_modal.R: Implemented upload business logic
+  - validate_upload_inputs(file, title, org, date, url): validates all form fields — returns {ok, message}; checks for NULL file, non-PDF extension, trimmed empty strings
+  - append_document_to_csv(csv_path, new_row): reads existing CSV, appends one row, writes back; returns csv_path invisibly
+- R/app_ui.R:
+  - upload_modal_ui(): modalDialog with fileInput(.pdf), textInputs for Title/Organisation/Date/URL, uiOutput("upload_progress") for progress bar
+  - Added shinyjs::useShinyjs() to page_fluid
+  - Added JS custom message handler "pulse_source_tab" that animates the Source Material nav-link
+- R/app_server.R:
+  - knowledge_base reactiveVal: loaded from RDS on startup, updated on upload
+  - documents_rv reactiveVal: drives source_table reactively; updated after each successful upload
+  - observeEvent(input$open_upload_modal): showModal(upload_modal_ui())
+  - observeEvent(input$submit_upload): validates inputs → 3-step progress bar (33/66/90%) →
+    append_to_knowledge_base → save_knowledge_base → append_document_to_csv → update reactives →
+    session$sendCustomMessage("pulse_source_tab") → success alert → shinyjs::delay(1500, removeModal())
+  - build_kb handler updated to populate knowledge_base reactiveVal
+- inst/app/www/app.css: @keyframes tab-pulse-anim + .nav-link.tab-pulse class for subtle violet pulse
+- DESCRIPTION: added shinyjs to Imports
+- tests/testthat/test-fct_upload_modal.R: 29 tests via TDD (red→green)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 29 (186 total across all test files)
