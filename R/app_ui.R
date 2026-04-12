@@ -90,6 +90,11 @@ golem_add_external_resources <- function() {
         if (s) s.textContent = msg.step;
         if (c) c.textContent = msg.count_line;
         if (p) p.style.width = msg.pct + '%';
+      });
+      // Focus chat input on load (once the Chat tab and textarea are rendered)
+      $(document).on('shiny:idle', function handler() {
+        var el = document.getElementById('chat_input');
+        if (el) { el.focus(); $(document).off('shiny:idle', handler); }
       });"
     ))
   )
@@ -275,7 +280,8 @@ build_kb_modal_ui <- function(n, current, saving = FALSE, filename = NULL, debug
 #' @noRd
 main_tabbed_ui <- function() {
   bslib::navset_tab(
-    id = "main_tabs",
+    id       = "main_tabs",
+    selected = "Chat",
     bslib::nav_panel(
       "Source Material",
       source_material_tab_ui()
