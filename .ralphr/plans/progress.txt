@@ -236,3 +236,21 @@ Status: COMPLETE (2026-04-12)
 - tests/testthat/test-fct_embedding_config.R: 34 tests for fct_embedding_config module
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 42 new tests (283 total across all test files)
+
+## Issue #14: Sentence-aware chunker: chunk_text_sentence() + tests
+Status: COMPLETE (2026-04-12)
+
+### Notes:
+- Implementation was fully delivered as part of Issue #13 (embedding strategy switcher)
+- chunk_text_sentence() exists in R/fct_embeddings.R (line 65)
+- All 9 acceptance criteria are met:
+  - Returns character vector ✅
+  - Returns single chunk when shorter than target ✅
+  - Returns character(0) for empty/NULL ✅
+  - Never cuts mid-sentence (soft cap) ✅
+  - Last sentence of chunk N starts chunk N+1 (overlap, i <- j) ✅
+  - At-or-below target size with 2-sentence minimum for progress guarantee ✅
+  - Single long sentence returned as its own chunk ✅
+  - Full test suite in test-fct_embeddings.R lines 337–413 ✅
+
+### TDD result: PASS 9 chunk_text_sentence tests (via inline Rscript verification)
