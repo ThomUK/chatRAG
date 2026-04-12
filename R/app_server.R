@@ -510,18 +510,6 @@ app_server <- function(input, output, session) {
     message("[BUILD] Processing document ", i, " / ", n_remaining,
             " remaining (", n_done, " / ", n_total, " total): ", filename)
 
-    # Update modal content in place — avoids Bootstrap 5 close/reopen flicker
-    pct        <- if (n_total > 0L) round(n_done / n_total * 100L) else 0L
-    active     <- n_done + 1L
-    step_text  <- paste0("Embedding document ", active, " of ", n_total, "\u2026")
-    count_text <- paste0(n_done, " of ", n_total,
-                         " embedded \u2014 processing: ", filename)
-    session$sendCustomMessage("update_build_modal", list(
-      step      = step_text,
-      count_line = count_text,
-      pct       = pct
-    ))
-
     tryCatch(
       {
         meta_row <- state$docs_meta[state$docs_meta$filename == filename, ]
@@ -553,12 +541,22 @@ app_server <- function(input, output, session) {
         message("[BUILD]   Interim cache saved: ", filename)
 
         new_results <- c(state$results, list(result))
+        n_completed <- n_done + 1L
 
         if (i < n_remaining) {
           next_file <- basename(state$pdf_files[[i + 1L]])
           build_state_rv(modifyList(state, list(results = new_results, idx = i + 1L)))
           message("[BUILD]   Scheduling next document (", i + 1L,
                   " / ", n_remaining, "): ", next_file)
+          # Update modal AFTER embedding completes so it flushes to browser
+          # before the next blocking operation starts
+          session$sendCustomMessage("update_build_modal", list(
+            step       = paste0("Embedding document ", n_completed + 1L,
+                                " of ", n_total, "\u2026"),
+            count_line = paste0(n_completed, " of ", n_total,
+                                " embedded \u2014 processing: ", next_file),
+            pct        = round(n_completed / n_total * 100L)
+          ))
           session$sendCustomMessage("trigger_next_doc", list(delay = 50L))
         } else {
           message("[BUILD] All ", n_total, " documents embedded. Saving knowledge base...")
