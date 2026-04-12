@@ -103,17 +103,22 @@ golem_add_external_resources <- function() {
           document.getElementById('chat_submit').click();
         }
       });
-      // Scroll so the last user query is at the top of the chat window
+      // Scroll so the last user query is at the top of the chat window.
+      // setTimeout defers until after Shiny flushes the new bubbles to the DOM.
+      // If the content isn't tall enough to reach that position, the browser
+      // clamps scrollTop to the maximum, naturally landing at the bottom.
       Shiny.addCustomMessageHandler('scroll_to_last_query', function(msg) {
-        var bubbles = document.querySelectorAll('.chat-bubble-user');
-        if (!bubbles.length) return;
-        var last = bubbles[bubbles.length - 1];
-        var wrapper = document.getElementById('chat-messages-wrapper');
-        if (wrapper) {
-          wrapper.scrollTop = last.offsetTop - wrapper.offsetTop;
-        } else {
-          last.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        setTimeout(function() {
+          var bubbles = document.querySelectorAll('.chat-bubble-user');
+          if (!bubbles.length) return;
+          var last    = bubbles[bubbles.length - 1];
+          var wrapper = document.getElementById('chat-messages-wrapper');
+          if (!wrapper) { last.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+          var targetTop = last.getBoundingClientRect().top
+                        - wrapper.getBoundingClientRect().top
+                        + wrapper.scrollTop;
+          wrapper.scrollTo({ top: targetTop, behavior: 'smooth' });
+        }, 100);
       });"
     ))
   )
