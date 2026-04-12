@@ -1,7 +1,8 @@
 # test-config_tab.R
-# TDD tests for Issue #18: Config tab — build new embedding combinations
-# Covers: config_tab_ui() structure, file-naming, overwrite safety, and
-# main_tabbed_ui() Config panel presence.
+# TDD tests for Issue #18 + #19: Config tab — build + activate embedding combinations
+# Covers: config_tab_ui() structure, file-naming, overwrite safety,
+# main_tabbed_ui() Config panel presence, format_kb_badge(), and
+# config_combinations_table_ui() with disabled/enabled radios.
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -180,4 +181,86 @@ test_that("built_combinations treats overwritten file as one built entry", {
 
   result <- built_combinations(dir)
   expect_equal(nrow(result), 1L)
+})
+
+# ── format_kb_badge() ─────────────────────────────────────────────────────────
+# Issue #19: Chat tab badge must show "KB: sentence · 1500" format
+
+test_that("format_kb_badge formats sentence_1500 as 'sentence · 1500'", {
+  expect_equal(format_kb_badge("sentence_1500"), "sentence \u00b7 1500")
+})
+
+test_that("format_kb_badge formats char_500 as 'char · 500'", {
+  expect_equal(format_kb_badge("char_500"), "char \u00b7 500")
+})
+
+test_that("format_kb_badge formats sentence_2000 as 'sentence · 2000'", {
+  expect_equal(format_kb_badge("sentence_2000"), "sentence \u00b7 2000")
+})
+
+test_that("format_kb_badge formats char_1000 as 'char · 1000'", {
+  expect_equal(format_kb_badge("char_1000"), "char \u00b7 1000")
+})
+
+test_that("format_kb_badge returns NULL for NULL input", {
+  expect_null(format_kb_badge(NULL))
+})
+
+# ── config_combinations_table_ui() ───────────────────────────────────────────
+# Issue #19: combinations table must disable radios for not-built rows and
+# pre-select the currently active slug.
+
+test_that("config_combinations_table_ui returns a shiny tag", {
+  all_combs   <- all_embedding_combinations()
+  built_combs <- all_combs[1L, ]
+  result <- config_combinations_table_ui(all_combs, built_combs, "char_500")
+  expect_true(inherits(result, c("shiny.tag", "shiny.tag.list")))
+})
+
+test_that("config_combinations_table_ui includes config_selected_slug input group id", {
+  all_combs   <- all_embedding_combinations()
+  built_combs <- all_combs[1L, ]
+  html <- as_html(config_combinations_table_ui(all_combs, built_combs, "char_500"))
+  expect_true(grepl("config_selected_slug", html))
+})
+
+test_that("config_combinations_table_ui marks not-built combinations as disabled", {
+  all_combs   <- all_embedding_combinations()
+  # Only char_500 built; char_1000 is not
+  built_combs <- all_combs[all_combs$strategy == "char" & all_combs$size == 500L, ]
+  html <- as_html(config_combinations_table_ui(all_combs, built_combs, "char_500"))
+  # At least one radio must carry disabled attribute (char_1000, char_1500, etc.)
+  expect_true(grepl("disabled", html))
+})
+
+test_that("config_combinations_table_ui does not disable the built combination", {
+  all_combs   <- all_embedding_combinations()
+  built_combs <- all_combs[all_combs$strategy == "char" & all_combs$size == 500L, ]
+  html <- as_html(config_combinations_table_ui(all_combs, built_combs, "char_500"))
+  # char_500 value must appear without disabled on the same input tag
+  expect_false(grepl('value="char_500"[^>]*disabled', html))
+})
+
+test_that("config_combinations_table_ui pre-selects the active slug", {
+  all_combs   <- all_embedding_combinations()
+  # Both char sizes built so char_1000 is a valid selection
+  built_combs <- all_combs[all_combs$strategy == "char", ]
+  html <- as_html(config_combinations_table_ui(all_combs, built_combs, "char_1000"))
+  # The char_1000 input must carry checked
+  expect_true(grepl('value="char_1000"[^>]*checked|checked[^>]*value="char_1000"', html))
+})
+
+test_that("config_combinations_table_ui selects first built slug when active_slug is NULL", {
+  all_combs   <- all_embedding_combinations()
+  built_combs <- all_combs[all_combs$strategy == "sentence" & all_combs$size == 1500L, ]
+  html <- as_html(config_combinations_table_ui(all_combs, built_combs, NULL))
+  # sentence_1500 is the only built slug — must be checked
+  expect_true(grepl('value="sentence_1500"[^>]*checked|checked[^>]*value="sentence_1500"', html))
+})
+
+test_that("config_combinations_table_ui has no checked radio when nothing is built and slug is NULL", {
+  all_combs   <- all_embedding_combinations()
+  built_combs <- all_combs[0L, ]  # empty — nothing built
+  html <- as_html(config_combinations_table_ui(all_combs, built_combs, NULL))
+  expect_false(grepl("checked", html))
 })

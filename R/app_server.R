@@ -667,68 +667,28 @@ app_server <- function(input, output, session) {
     config_built_rv(built_combinations(data_dir))
   })
 
-  # Render the combinations table with radio buttons
+  # Render the combinations table with disabled radios for not-built rows
   output$config_combinations_table <- renderUI({
-    all_combs <- all_embedding_combinations()
-    built     <- config_built_rv()
-    current   <- active_slug()
+    config_combinations_table_ui(
+      all_combs   = all_embedding_combinations(),
+      built_combs = config_built_rv(),
+      active_slug = active_slug()
+    )
+  })
 
-    rows <- lapply(seq_len(nrow(all_combs)), function(i) {
-      strat <- all_combs$strategy[i]
-      sz    <- all_combs$size[i]
-      sl    <- embedding_slug(strat, sz)
-      is_built <- any(built$strategy == strat & built$size == sz)
-
-      status_badge <- if (is_built) {
-        tags$span(class = "badge bg-success", "Built")
-      } else {
-        tags$span(class = "badge bg-secondary", "Not built")
-      }
-
-      active_indicator <- if (identical(sl, current)) {
-        tags$span(class = "badge bg-primary ms-1", "Active")
-      }
-
-      tags$tr(
-        tags$td(
-          radioButtons(
-            inputId  = paste0("config_radio_", sl),
-            label    = NULL,
-            choices  = setNames(sl, ""),
-            selected = if (is_built) character(0) else character(0)
-          ) |> tagAppendAttributes(style = "margin: 0; padding: 0;")
-        ),
-        tags$td(strat),
-        tags$td(as.character(sz)),
-        tags$td(status_badge, active_indicator)
-      )
-    })
-
-    # Simpler approach: use a single radioButtons group
+  # Disable Activate button when selected slug matches active or is not built
+  observe({
+    selected    <- input$config_selected_slug
+    current     <- active_slug()
+    built       <- config_built_rv()
     built_slugs <- embedding_slug(built$strategy, built$size)
-    all_slugs   <- embedding_slug(all_combs$strategy, all_combs$size)
 
-    choices_list <- setNames(
-      as.list(all_slugs),
-      paste0(
-        all_combs$strategy, " / ", all_combs$size, " chars",
-        ifelse(all_slugs %in% built_slugs, " \u2713", " \u2013 not built"),
-        ifelse(all_slugs == current, " [active]", "")
-      )
-    )
-
-    tagList(
-      radioButtons(
-        inputId  = "config_selected_slug",
-        label    = NULL,
-        choices  = choices_list,
-        selected = if (!is.null(current)) current else if (length(built_slugs) > 0L) built_slugs[1L] else character(0)
-      ),
-      tags$p(
-        class = "text-muted small mt-1",
-        "Only built combinations can be activated. \u2713 = built on disk."
-      )
-    )
+    if (is.null(selected) || identical(selected, current) ||
+        !(selected %in% built_slugs)) {
+      shinyjs::disable("config_activate")
+    } else {
+      shinyjs::enable("config_activate")
+    }
   })
 
   # Activate button: swap active KB
@@ -803,7 +763,7 @@ app_server <- function(input, output, session) {
         tags$span(
           class = "badge bg-secondary ms-1",
           style = "font-size: 0.65em; vertical-align: middle;",
-          paste0("KB: ", gsub("_", "\u00a0", slug))
+          paste0("KB: ", format_kb_badge(slug))
         )
       )
     }

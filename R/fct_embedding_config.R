@@ -100,6 +100,21 @@ migrate_legacy_embedding <- function(data_dir) {
 }
 
 
+#' Format a slug for display in the chat badge
+#'
+#' Converts e.g. `"sentence_1500"` → `"sentence · 1500"`.
+#'
+#' @param slug Slug string (e.g. `"sentence_1500"`), or `NULL`.
+#'
+#' @return A character string like `"sentence · 1500"`, or `NULL`.
+#' @noRd
+format_kb_badge <- function(slug) {
+  if (is.null(slug)) return(NULL)
+  parts <- strsplit(slug, "_", fixed = TRUE)[[1L]]
+  paste0(parts[1L], " \u00b7 ", parts[2L])
+}
+
+
 #' Enumerate which of the 8 combinations have been built on disk
 #'
 #' @param data_dir Path to the app data directory.
