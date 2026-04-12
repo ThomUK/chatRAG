@@ -102,6 +102,18 @@ golem_add_external_resources <- function() {
           e.preventDefault();
           document.getElementById('chat_submit').click();
         }
+      });
+      // Scroll so the last user query is at the top of the chat window
+      Shiny.addCustomMessageHandler('scroll_to_last_query', function(msg) {
+        var bubbles = document.querySelectorAll('.chat-bubble-user');
+        if (!bubbles.length) return;
+        var last = bubbles[bubbles.length - 1];
+        var wrapper = document.getElementById('chat-messages-wrapper');
+        if (wrapper) {
+          wrapper.scrollTop = last.offsetTop - wrapper.offsetTop;
+        } else {
+          last.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });"
     ))
   )

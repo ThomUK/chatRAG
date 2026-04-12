@@ -271,8 +271,10 @@ app_server <- function(input, output, session) {
     user_msg        <- format_chat_message("user", query)
     chat_history(c(current_history, list(user_msg)))
 
-    # Clear input and show spinner
+    # Clear input, disable controls, and show spinner
     updateTextAreaInput(session, "chat_input", value = "")
+    shinyjs::disable("chat_input")
+    shinyjs::disable("chat_submit")
     output$chat_thinking <- renderUI({
       tags$div(
         class = "d-flex align-items-center gap-2 text-muted mt-2",
@@ -302,6 +304,10 @@ app_server <- function(input, output, session) {
 
         chat_history(c(chat_history(), list(asst_msg)))
         output$chat_thinking <- renderUI(NULL)
+        shinyjs::enable("chat_input")
+        shinyjs::enable("chat_submit")
+        session$sendCustomMessage("scroll_to_last_query", list())
+        shinyjs::runjs("document.getElementById('chat_input').focus();")
       },
       error = function(e) {
         output$chat_thinking <- renderUI({
@@ -312,6 +318,8 @@ app_server <- function(input, output, session) {
             if (length(parts) > 1L) tagList(tags$br(), parts[[2L]])
           )
         })
+        shinyjs::enable("chat_input")
+        shinyjs::enable("chat_submit")
       }
     )
   })
