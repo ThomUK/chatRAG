@@ -14,8 +14,9 @@ app_server <- function(input, output, session) {
   chat_history <- reactiveVal(list())
 
   # ── Reactive state ───────────────────────────────────────────────────────────
-  embeddings_path <- app_sys("app/data/embeddings.rds")
-  csv_path        <- app_sys("app/data/documents.csv")
+  data_dir        <- app_sys("app/data")
+  embeddings_path <- file.path(data_dir, "embeddings.rds")
+  csv_path        <- file.path(data_dir, "documents.csv")
 
   kb_ready <- reactiveVal(embeddings_file_exists(embeddings_path))
 
@@ -392,7 +393,7 @@ app_server <- function(input, output, session) {
 
   # ── Build Knowledge Base ─────────────────────────────────────────────────────
 
-  cache_dir <- app_sys("app/data/embeddings_cache")
+  cache_dir <- file.path(data_dir, "embeddings_cache")
 
   # State carried across per-document observer ticks
   build_state_rv <- reactiveVal(NULL)
