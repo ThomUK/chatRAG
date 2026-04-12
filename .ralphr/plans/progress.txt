@@ -268,3 +268,41 @@ Status: COMPLETE (2026-04-12)
 - All 12 acceptance criteria verified via test run
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 34
+
+## Issue #16: Startup migration + load KB from active slug
+Status: COMPLETE (2026-04-12)
+
+### Notes:
+- Implementation was fully delivered as part of Issue #13 (embedding strategy switcher)
+- All 6 acceptance criteria are met:
+  1. App starts without error when embeddings.rds exists (migrate_legacy_embedding handles it) ✅
+  2. After first startup, embeddings_char_500.rds exists and embeddings.rds is gone ✅
+  3. App starts without error when active_embedding.txt + named .rds file exist ✅
+  4. App loads correct KB as identified by active slug (slug-derived path in knowledge_base reactiveVal) ✅
+  5. App starts without error showing welcome screen when no KB files exist (kb_ready = FALSE) ✅
+  6. Hardcoded reference to embeddings.rds removed from server startup (only comment remains) ✅
+- Key code in R/app_server.R lines 21-49:
+  - migrate_legacy_embedding(data_dir) called at startup
+  - read_active_slug(data_dir) with built_combinations() fallback
+  - active_slug reactiveVal drives embeddings_path
+  - kb_ready and knowledge_base initialised from slug-derived path
+- All underlying functions tested in test-fct_embedding_config.R (34 tests, all passing)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 34 (functions tested via #15)
+
+## Issue #17: Parameterise build + welcome screen defaults to sentence/1500
+Status: COMPLETE (2026-04-12)
+
+### Notes:
+- Implementation was fully delivered as part of Issue #13 (embedding strategy switcher)
+- All 7 acceptance criteria are met:
+  1. build_knowledge_base() accepts strategy and chunk_size params (fct_embeddings.R:190-218) ✅
+  2. Passing strategy="char" uses chunk_text() chunker (fct_embeddings.R:211-213) ✅
+  3. Passing strategy="sentence" uses chunk_text_sentence() chunker (fct_embeddings.R:209-211) ✅
+  4. Welcome screen build writes to embeddings_sentence_1500.rds (app_server.R:535) ✅
+  5. Welcome screen build writes "sentence_1500" to active_embedding.txt on completion (app_server.R:543) ✅
+  6. Build progress modal and behaviour unchanged from user's perspective ✅
+  7. App loads newly built KB correctly after welcome screen build (app_server.R:545-546) ✅
+- Key code in R/app_server.R lines 533-549 (welcome-screen build handler)
+- Default strategy/chunk_size enforced in function signature: strategy="sentence", chunk_size=1500L
+- All 352 tests pass (FAIL 0 | WARN 0 | SKIP 0)
