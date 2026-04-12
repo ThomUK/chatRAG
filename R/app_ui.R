@@ -160,6 +160,57 @@ welcome_screen_ui <- function(checks = NULL) {
 }
 
 
+#' Build the knowledge base build progress modal
+#'
+#' @param n_pdfs   Number of PDFs to be embedded.
+#' @param step     Current step label shown below the spinner.
+#'
+#' @noRd
+build_kb_modal_ui <- function(n_pdfs, step) {
+  est_mins <- max(1L, round(n_pdfs * 0.25))
+
+  modalDialog(
+    title     = "Building Knowledge Base",
+    size      = "m",
+    easyClose = FALSE,
+    footer    = NULL,           # no dismiss button
+
+    tags$div(
+      class = "text-center py-3",
+
+      tags$div(
+        class = "spinner-border text-primary mb-4",
+        style = "width: 3rem; height: 3rem;",
+        role  = "status"
+      ),
+
+      tags$p(class = "fw-semibold mb-1", step),
+
+      tags$p(
+        class = "text-muted small mb-3",
+        paste0(
+          "Processing ", n_pdfs, " document",
+          if (n_pdfs == 1L) "" else "s",
+          " \u2014 this typically takes ",
+          if (est_mins == 1L) "around 1 minute" else paste0(est_mins, "\u2013", est_mins + 2L, " minutes"),
+          ". Please do not close the app."
+        )
+      ),
+
+      tags$div(
+        class = "progress mx-auto",
+        style = "max-width: 320px;",
+        tags$div(
+          class = "progress-bar progress-bar-striped progress-bar-animated bg-primary",
+          style = "width: 100%",
+          role  = "progressbar"
+        )
+      )
+    )
+  )
+}
+
+
 #' Build the main tabbed UI
 #'
 #' @noRd

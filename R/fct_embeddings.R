@@ -15,7 +15,32 @@
 #' @noRd
 .call_ollama_embed <- function(chunks) {
   response <- ollamar::embed("nomic-embed-text", chunks)
-  response$embeddings
+
+  # ollamar::embed() return shape varies by version:
+  #   - data frame with an 'embeddings' list column  (most versions)
+  #   - numeric matrix, one embedding per row        (some versions)
+  #   - list with an $embeddings element             (raw-ish versions)
+  embeddings <- if (is.data.frame(response)) {
+    response$embeddings
+  } else if (is.matrix(response)) {
+    lapply(seq_len(nrow(response)), function(i) as.numeric(response[i, ]))
+  } else if (is.list(response) && !is.null(response$embeddings)) {
+    response$embeddings
+  } else {
+    stop(
+      "Unexpected response from ollamar::embed(). ",
+      "Got class: ", paste(class(response), collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  # If the embeddings column is itself a matrix (wide data frame variant),
+  # convert to a plain list of vectors so tibble() can store it as a list column
+  if (is.matrix(embeddings)) {
+    lapply(seq_len(nrow(embeddings)), function(i) as.numeric(embeddings[i, ]))
+  } else {
+    embeddings
+  }
 }
 
 #' @noRd
