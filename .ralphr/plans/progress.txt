@@ -254,3 +254,17 @@ Status: COMPLETE (2026-04-12)
   - Full test suite in test-fct_embeddings.R lines 337–413 ✅
 
 ### TDD result: PASS 9 chunk_text_sentence tests (via inline Rscript verification)
+
+## Issue #15: Embedding config module: fct_embedding_config + tests
+Status: COMPLETE (2026-04-12)
+
+### Notes:
+- Implementation was fully delivered as part of Issue #13 (embedding strategy switcher)
+- R/fct_embedding_config.R exists with all 7 required exported functions:
+  - all_embedding_combinations(), embedding_slug(), embedding_file_path()
+  - read_active_slug(), write_active_slug()
+  - migrate_legacy_embedding(), built_combinations()
+- tests/testthat/test-fct_embedding_config.R: 34 tests, all passing
+- All 12 acceptance criteria verified via test run
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 34
