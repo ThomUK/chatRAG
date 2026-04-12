@@ -70,6 +70,17 @@ golem_add_external_resources <- function() {
         setTimeout(function() {
           Shiny.setInputValue('process_next_doc', Math.random(), {priority: 'event'});
         }, msg.delay || 50);
+      });
+      // Force-close any open modal using the Bootstrap 5 API
+      Shiny.addCustomMessageHandler('force_close_modal', function(msg) {
+        document.querySelectorAll('.modal.show').forEach(function(el) {
+          var m = bootstrap.Modal.getInstance(el);
+          if (m) { m.hide(); } else { el.classList.remove('show'); }
+        });
+        document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
       });"
     ))
   )

@@ -480,7 +480,7 @@ app_server <- function(input, output, session) {
       },
       error = function(e) {
         message("[BUILD ERROR] Build initiation failed: ", conditionMessage(e))
-        removeModal()
+        session$sendCustomMessage("force_close_modal", list())
         output$build_progress <- renderUI({
           tagList(
             tags$hr(),
@@ -575,7 +575,7 @@ app_server <- function(input, output, session) {
       error = function(e) {
         message("[BUILD ERROR] Failed on document ", i, " (", filename, "): ",
                 conditionMessage(e))
-        removeModal()
+        session$sendCustomMessage("force_close_modal", list())
         build_state_rv(NULL)
         output$build_progress <- renderUI({
           tagList(
