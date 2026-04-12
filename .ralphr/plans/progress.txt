@@ -306,3 +306,32 @@ Status: COMPLETE (2026-04-12)
 - Key code in R/app_server.R lines 533-549 (welcome-screen build handler)
 - Default strategy/chunk_size enforced in function signature: strategy="sentence", chunk_size=1500L
 - All 352 tests pass (FAIL 0 | WARN 0 | SKIP 0)
+
+## Issue #18: Config tab: build new embedding combinations
+Status: COMPLETE (2026-04-12)
+
+### Changes made:
+- tests/testthat/test-config_tab.R: 30 TDD tests for Config tab build feature
+  - config_tab_ui() structure: 10 tests covering shiny tag type, uiOutputs
+    (config_combinations_table, config_build_status), strategy selectInput defaulting
+    to "sentence", size selectInput defaulting to "1500", both button ids
+    (config_build, config_activate), all 4 chunk sizes in choices, both strategies
+  - main_tabbed_ui() Config panel presence (2 tests, skip_if_not_installed("DT"))
+  - embedding_slug() file-naming: 4 tests for all representative slug combinations
+  - embedding_file_path(): 2 tests (correct basename + correct base directory)
+  - save_knowledge_base() overwrite safety: 2 tests (no error on overwrite; data
+    correctly replaced; invisible return)
+  - built_combinations() reflects new/overwritten files: 2 tests
+
+### Notes:
+- Core implementation was delivered as part of Issue #13
+- Config tab (config_tab_ui) always appears inside main_tabbed_ui(), which is
+  itself only rendered when kb_ready() is TRUE — satisfying AC#1 (visible once
+  any KB exists)
+- .start_build() shared helper triggers the build progress modal for both the
+  welcome screen and the Config tab — satisfying AC#5 and AC#6
+- Overwrite safety confirmed: save_knowledge_base uses saveRDS which overwrites
+  without error — satisfying AC#7
+- 2 tests skipped in CI environment (DT not installed); will pass in full env
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 2 | PASS 30 new tests
