@@ -21,6 +21,10 @@
       "content-type"      = "application/json"
     ) |>
     httr2::req_body_json(body) |>
+    httr2::req_error(body = function(resp) {
+      parsed <- tryCatch(httr2::resp_body_json(resp), error = function(e) NULL)
+      if (!is.null(parsed$error$message)) parsed$error$message else NULL
+    }) |>
     httr2::req_perform()
 
   parsed <- httr2::resp_body_json(resp)
@@ -83,19 +87,41 @@
 #' @return A clean character string suitable for display in the Shiny UI.
 #' @noRd
 friendly_error <- function(e) {
-  msg <- gsub("\033\\[[0-9;]*m", "", conditionMessage(e))
+  # httr2 HTTP errors: reconstruct from raw parts to avoid cli truncation.
+  # e$message is cli-formatted (respects terminal width and may be cut short).
+  # e$body holds the API error text as a named character vector.
+  # e$resp holds the raw response for status code/description.
+  if (inherits(e, "httr2_http")) {
+    status_line <- tryCatch(
+      paste0("HTTP ", httr2::resp_status(e$resp), " ",
+             httr2::resp_status_desc(e$resp), "."),
+      error = function(err) "HTTP error."
+    )
+    body_text <- if (!is.null(e$body) && length(e$body) > 0L) {
+      trimws(paste(unname(e$body), collapse = " "))
+    } else {
+      ""
+    }
+    msg <- if (nchar(body_text) > 0L) {
+      paste0(status_line, "\n", body_text)
+    } else {
+      status_line
+    }
+  } else {
+    msg <- gsub("\033\\[[0-9;]*m", "", conditionMessage(e))
+  }
 
   hint <- if (grepl("401", msg, fixed = TRUE)) {
-    " — Check that your API key is correct and has not expired."
+    "Check that your API key is correct and has not expired."
   } else if (grepl("429", msg, fixed = TRUE)) {
-    " — Rate limit reached. Please wait a moment and try again."
+    "Rate limit reached. Please wait a moment and try again."
   } else if (grepl("500|502|503", msg)) {
-    " — The API is temporarily unavailable. Try again shortly."
+    "The API is temporarily unavailable. Try again shortly."
   } else {
     ""
   }
 
-  paste0(msg, hint)
+  if (nchar(hint) > 0L) paste0(msg, "\n", hint) else msg
 }
 
 
@@ -148,6 +174,11 @@ build_messages <- function(chat_history, context_chunks, user_query) {
   if (n_history > window_size) {
     chat_history <- chat_history[(n_history - window_size + 1L):n_history]
   }
+
+  # Strip to role + content only — UI fields like context_chunks must not reach the API
+  chat_history <- lapply(chat_history, function(msg) {
+    list(role = msg$role, content = msg$content)
+  })
 
   # Build context block from retrieved chunks
   context_lines <- vapply(seq_len(nrow(context_chunks)), function(i) {

@@ -305,9 +305,11 @@ app_server <- function(input, output, session) {
       },
       error = function(e) {
         output$chat_thinking <- renderUI({
+          parts <- strsplit(friendly_error(e), "\n", fixed = TRUE)[[1L]]
           tags$div(
             class = "alert alert-danger mt-2",
-            paste0("Error: ", friendly_error(e))
+            tags$strong(paste0("Error: ", parts[[1L]])),
+            if (length(parts) > 1L) tagList(tags$br(), parts[[2L]])
           )
         })
       }
