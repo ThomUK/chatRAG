@@ -307,7 +307,7 @@ app_server <- function(input, output, session) {
         output$chat_thinking <- renderUI({
           tags$div(
             class = "alert alert-danger mt-2",
-            paste0("Error: ", conditionMessage(e))
+            paste0("Error: ", friendly_error(e))
           )
         })
       }

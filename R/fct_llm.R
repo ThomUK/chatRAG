@@ -72,6 +72,33 @@
 }
 
 
+# Helpers ----------------------------------------------------------------------
+
+#' Strip ANSI escape sequences and produce a user-friendly error message
+#'
+#' httr2 includes terminal colour codes in its error messages.  This helper
+#' removes them and, for common HTTP errors, appends a plain-English hint.
+#'
+#' @param e A condition object.
+#' @return A clean character string suitable for display in the Shiny UI.
+#' @noRd
+friendly_error <- function(e) {
+  msg <- gsub("\033\\[[0-9;]*m", "", conditionMessage(e))
+
+  hint <- if (grepl("401", msg, fixed = TRUE)) {
+    " — Check that your API key is correct and has not expired."
+  } else if (grepl("429", msg, fixed = TRUE)) {
+    " — Rate limit reached. Please wait a moment and try again."
+  } else if (grepl("500|502|503", msg)) {
+    " — The API is temporarily unavailable. Try again shortly."
+  } else {
+    ""
+  }
+
+  paste0(msg, hint)
+}
+
+
 # Public API -------------------------------------------------------------------
 
 #' Build the RAG system prompt
@@ -240,7 +267,7 @@ test_connection <- function(provider, api_key, ...) {
       list(success = TRUE)
     },
     error = function(e) {
-      list(success = FALSE, message = conditionMessage(e))
+      list(success = FALSE, message = friendly_error(e))
     }
   )
 }
