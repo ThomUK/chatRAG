@@ -95,6 +95,13 @@ golem_add_external_resources <- function() {
       $(document).on('shiny:idle', function handler() {
         var el = document.getElementById('chat_input');
         if (el) { el.focus(); $(document).off('shiny:idle', handler); }
+      });
+      // Submit chat on Enter (Shift+Enter inserts a newline)
+      $(document).on('keydown', '#chat_input', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          document.getElementById('chat_submit').click();
+        }
       });"
     ))
   )
