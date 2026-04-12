@@ -311,12 +311,17 @@ main_tabbed_ui <- function() {
       source_material_tab_ui()
     ),
     bslib::nav_panel(
-      "Chat",
+      title = uiOutput("chat_tab_label", inline = TRUE),
+      value = "Chat",
       chat_tab_ui()
     ),
     bslib::nav_panel(
       "Connect Your Own",
       connect_your_own_tab_ui()
+    ),
+    bslib::nav_panel(
+      "Config",
+      config_tab_ui()
     )
   )
 }
@@ -454,6 +459,78 @@ upload_modal_ui <- function() {
         label   = "Upload & Embed",
         class   = "btn btn-primary"
       )
+    )
+  )
+}
+
+
+#' Build the Config tab content
+#'
+#' Shows a table of all 8 strategy × size combinations with build status and
+#' radio-button selection, plus a build section and an Activate button.
+#'
+#' @noRd
+config_tab_ui <- function() {
+  tagList(
+    tags$div(
+      class = "mt-4",
+
+      tags$h5("Embedding Configuration", class = "fw-semibold mb-1"),
+      tags$p(
+        class = "text-muted small mb-4",
+        "Build and activate different embedding strategies.",
+        "The active knowledge base is used for all chat queries.",
+        "Switch configurations live to compare retrieval quality."
+      ),
+
+      # ── Combination status table ───────────────────────────────────────────
+      tags$h6("Available Combinations", class = "fw-semibold mb-2"),
+      uiOutput("config_combinations_table"),
+
+      tags$div(
+        class = "mt-3 mb-4",
+        actionButton(
+          inputId = "config_activate",
+          label   = "Activate Selected",
+          class   = "btn btn-primary btn-sm"
+        )
+      ),
+
+      tags$hr(),
+
+      # ── Build section ──────────────────────────────────────────────────────
+      tags$h6("Build a New Combination", class = "fw-semibold mb-2"),
+      tags$div(
+        class = "d-flex gap-2 align-items-end mb-3",
+        tags$div(
+          selectInput(
+            inputId  = "config_build_strategy",
+            label    = "Strategy",
+            choices  = c("sentence", "char"),
+            selected = "sentence",
+            width    = "150px"
+          )
+        ),
+        tags$div(
+          selectInput(
+            inputId  = "config_build_size",
+            label    = "Chunk Size",
+            choices  = c("500", "1000", "1500", "2000"),
+            selected = "1500",
+            width    = "130px"
+          )
+        ),
+        tags$div(
+          class = "mb-3",
+          actionButton(
+            inputId = "config_build",
+            label   = "Build",
+            class   = "btn btn-outline-primary btn-sm"
+          )
+        )
+      ),
+
+      uiOutput("config_build_status")
     )
   )
 }

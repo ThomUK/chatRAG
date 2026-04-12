@@ -51,6 +51,58 @@
 
 # Public API -------------------------------------------------------------------
 
+#' Split text into sentence-aware overlapping chunks
+#'
+#' Accumulates complete sentences until the target character length is reached
+#' (soft cap — a single sentence longer than `chunk_size` is kept whole).
+#' The last sentence of each chunk is carried into the next chunk as overlap.
+#'
+#' @param text       A single character string.
+#' @param chunk_size Target maximum number of characters per chunk (soft cap).
+#'
+#' @return A character vector of chunks, or `character(0)` for empty/NULL input.
+#' @noRd
+chunk_text_sentence <- function(text, chunk_size = 1500) {
+  if (is.null(text) || length(text) == 0L || nchar(text) == 0L) {
+    return(character(0))
+  }
+
+  # Split at sentence-ending punctuation followed by whitespace
+  sentences <- strsplit(text, "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
+  sentences <- sentences[nchar(trimws(sentences)) > 0L]
+
+  if (length(sentences) == 0L) return(character(0))
+  if (length(sentences) == 1L) return(text)
+
+  chunks <- character(0)
+  n      <- length(sentences)
+  i      <- 1L
+
+  while (i <= n) {
+    j           <- i
+    current_len <- nchar(sentences[j])
+
+    # Greedily add more sentences while under chunk_size.
+    # Always add at least two sentences when possible (j > i guard ensures we
+    # never break before adding the second sentence, giving guaranteed progress).
+    while (j < n) {
+      next_len <- nchar(sentences[j + 1L])
+      if (current_len + 1L + next_len > chunk_size && j > i) break
+      j           <- j + 1L
+      current_len <- current_len + 1L + nchar(sentences[j])
+    }
+
+    chunks <- c(chunks, paste(sentences[i:j], collapse = " "))
+
+    if (j >= n) break
+    # Overlap: next chunk starts at the last sentence of the current chunk
+    i <- j
+  }
+
+  chunks
+}
+
+
 #' Split text into overlapping character chunks
 #'
 #' @param text      A single character string.
@@ -125,16 +177,21 @@ embed_chunks <- function(chunks, doc_metadata) {
 #'
 #' @param pdf_paths          Character vector of paths to PDF files.
 #' @param documents_csv_path Path to the documents metadata CSV.
-#' @param chunk_size         Passed to [chunk_text()].
-#' @param overlap            Passed to [chunk_text()].
+#' @param strategy           Chunking strategy: `"sentence"` (default) or
+#'   `"char"`.
+#' @param chunk_size         Target chunk size in characters.  Defaults to
+#'   `1500` for sentence strategy, `500` for character strategy.
+#' @param overlap            Overlap in characters (only used when `strategy =
+#'   "char"`).
 #'
 #' @return A tibble (knowledge base) with columns: chunk_text, embedding,
 #'   doc_title, doc_org, doc_date, doc_url.
 #' @noRd
 build_knowledge_base <- function(pdf_paths,
                                  documents_csv_path,
-                                 chunk_size = 500,
-                                 overlap    = 50) {
+                                 strategy   = "sentence",
+                                 chunk_size = if (strategy == "sentence") 1500L else 500L,
+                                 overlap    = 50L) {
   docs <- readr::read_csv(documents_csv_path, show_col_types = FALSE)
 
   results <- lapply(pdf_paths, function(pdf_path) {
@@ -148,8 +205,12 @@ build_knowledge_base <- function(pdf_paths,
       doc_url   = meta_row$url
     )
 
-    text   <- parse_pdf(pdf_path)
-    chunks <- chunk_text(text, chunk_size = chunk_size, overlap = overlap)
+    text <- parse_pdf(pdf_path)
+    chunks <- if (strategy == "sentence") {
+      chunk_text_sentence(text, chunk_size = chunk_size)
+    } else {
+      chunk_text(text, chunk_size = chunk_size, overlap = overlap)
+    }
     embed_chunks(chunks, doc_metadata)
   })
 
@@ -164,18 +225,25 @@ build_knowledge_base <- function(pdf_paths,
 #' @param pdf_path     Path to the new PDF file.
 #' @param doc_metadata Named list with fields `doc_title`, `doc_org`,
 #'   `doc_date`, and `doc_url`.
-#' @param chunk_size   Passed to [chunk_text()].
-#' @param overlap      Passed to [chunk_text()].
+#' @param strategy     Chunking strategy: `"sentence"` (default) or `"char"`.
+#' @param chunk_size   Target chunk size in characters.
+#' @param overlap      Overlap in characters (only used when `strategy =
+#'   "char"`).
 #'
 #' @return An updated knowledge base tibble.
 #' @noRd
 append_to_knowledge_base <- function(existing_kb,
                                      pdf_path,
                                      doc_metadata,
-                                     chunk_size = 500,
-                                     overlap    = 50) {
-  text   <- parse_pdf(pdf_path)
-  chunks <- chunk_text(text, chunk_size = chunk_size, overlap = overlap)
+                                     strategy   = "sentence",
+                                     chunk_size = if (strategy == "sentence") 1500L else 500L,
+                                     overlap    = 50L) {
+  text <- parse_pdf(pdf_path)
+  chunks <- if (strategy == "sentence") {
+    chunk_text_sentence(text, chunk_size = chunk_size)
+  } else {
+    chunk_text(text, chunk_size = chunk_size, overlap = overlap)
+  }
   new_rows <- embed_chunks(chunks, doc_metadata)
   dplyr::bind_rows(existing_kb, new_rows)
 }

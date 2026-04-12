@@ -14,16 +14,44 @@ app_server <- function(input, output, session) {
   chat_history <- reactiveVal(list())
 
   # ── Reactive state ───────────────────────────────────────────────────────────
-  data_dir        <- app_sys("app/data")
-  embeddings_path <- file.path(data_dir, "embeddings.rds")
-  csv_path        <- file.path(data_dir, "documents.csv")
+  data_dir <- app_sys("app/data")
+  csv_path <- file.path(data_dir, "documents.csv")
 
-  kb_ready <- reactiveVal(embeddings_file_exists(embeddings_path))
+  # Migrate legacy embeddings.rds → embeddings_char_500.rds on first startup
+  migrate_legacy_embedding(data_dir)
 
-  # In-memory knowledge base — loaded once, updated on upload
+  # Determine active slug and corresponding file path
+  active_slug_init <- read_active_slug(data_dir)
+  if (is.null(active_slug_init)) {
+    # Fall back to first built file found
+    built <- built_combinations(data_dir)
+    if (nrow(built) > 0L) {
+      active_slug_init <- embedding_slug(built$strategy[1L], built$size[1L])
+    }
+  }
+
+  active_slug <- reactiveVal(active_slug_init)
+
+  active_embeddings_path <- function(slug = active_slug()) {
+    if (is.null(slug)) NULL
+    else file.path(data_dir, paste0("embeddings_", slug, ".rds"))
+  }
+
+  kb_ready <- reactiveVal({
+    path <- active_embeddings_path(active_slug_init)
+    !is.null(path) && file.exists(path)
+  })
+
+  # In-memory knowledge base — loaded once, updated on upload / activate
+  init_path <- active_embeddings_path(active_slug_init)
   knowledge_base <- reactiveVal(
-    if (embeddings_file_exists(embeddings_path)) load_knowledge_base(embeddings_path) else NULL
+    if (!is.null(init_path) && file.exists(init_path)) load_knowledge_base(init_path) else NULL
   )
+
+  # Convenience: path for the currently active KB file (used by upload handler)
+  embeddings_path <- reactive({
+    active_embeddings_path()
+  })
 
   # Documents list — drives the source table reactively
   documents_rv <- reactiveVal(load_documents_csv(csv_path))
@@ -171,7 +199,7 @@ app_server <- function(input, output, session) {
           )
         })
 
-        save_knowledge_base(updated_kb, embeddings_path)
+        save_knowledge_base(updated_kb, embeddings_path())
 
         # Append metadata to documents.csv
         new_doc_row <- list(
@@ -415,28 +443,26 @@ app_server <- function(input, output, session) {
     removeModal()
   })
 
-  # Kick off the build: load any cached results, queue only uncached PDFs
-  observeEvent(input$build_kb, {
+  # ── Internal helper: kick off a build with given strategy/size/target_path ──
+
+  .start_build <- function(strategy, chunk_size, target_path,
+                           on_complete = function(kb) NULL) {
     pdf_dir   <- app_sys("app/data/pdfs")
     pdf_files <- list.files(pdf_dir, pattern = "\\.pdf$",
                             ignore.case = TRUE, full.names = TRUE,
                             recursive = TRUE)
     n_total <- length(pdf_files)
 
-    message("[BUILD] Build triggered. PDFs found: ", n_total)
-    message("[BUILD] PDF directory: ", pdf_dir)
-    if (n_total > 0L) {
-      message("[BUILD] Files: ", paste(basename(pdf_files), collapse = ", "))
-    }
+    message("[BUILD] Build triggered. Strategy: ", strategy,
+            "  chunk_size: ", chunk_size, "  PDFs: ", n_total)
 
     tryCatch(
       {
         docs_meta <- readr::read_csv(csv_path, show_col_types = FALSE)
         message("[BUILD] documents.csv loaded: ", nrow(docs_meta), " rows")
 
-        # Load any previously cached interim results
-        cached_results  <- list()
-        uncached_files  <- character(0)
+        cached_results <- list()
+        uncached_files <- character(0)
 
         for (pdf_path in pdf_files) {
           cached <- load_interim_embedding(cache_dir, basename(pdf_path))
@@ -455,24 +481,22 @@ app_server <- function(input, output, session) {
                 "  —  remaining: ", n_remaining)
 
         showModal(build_kb_modal_ui(
-          n       = n_total,
-          current = n_cached,
+          n        = n_total,
+          current  = n_cached,
           filename = if (n_remaining > 0L) basename(uncached_files[[1L]]) else NULL
         ))
         message("[BUILD] Modal shown. Scheduling first document tick...")
 
         if (n_remaining == 0L) {
-          # Everything is cached — go straight to saving
           message("[BUILD] All documents already cached. Saving knowledge base...")
           showModal(build_kb_modal_ui(n = n_total, current = n_total, saving = TRUE))
           kb <- dplyr::bind_rows(cached_results)
-          save_knowledge_base(kb, embeddings_path)
+          save_knowledge_base(kb, target_path)
           clear_interim_cache(cache_dir)
           message("[BUILD] Knowledge base saved. Cache cleared.")
           removeModal()
-          knowledge_base(kb)
-          kb_ready(TRUE)
-          message("[BUILD] Build complete. kb_ready = TRUE")
+          on_complete(kb)
+          message("[BUILD] Build complete.")
           return()
         }
 
@@ -482,7 +506,11 @@ app_server <- function(input, output, session) {
           results     = cached_results,
           idx         = 1L,
           n_remaining = n_remaining,
-          n_total     = n_total
+          n_total     = n_total,
+          strategy    = strategy,
+          chunk_size  = chunk_size,
+          target_path = target_path,
+          on_complete = on_complete
         ))
 
         session$sendCustomMessage("trigger_next_doc", list(delay = 100L))
@@ -498,6 +526,24 @@ app_server <- function(input, output, session) {
                    paste0("Build failed: ", conditionMessage(e)))
           )
         })
+      }
+    )
+  }
+
+  # Kick off the welcome-screen build (always sentence/1500)
+  observeEvent(input$build_kb, {
+    target_path <- file.path(data_dir, "embeddings_sentence_1500.rds")
+
+    .start_build(
+      strategy    = "sentence",
+      chunk_size  = 1500L,
+      target_path = target_path,
+      on_complete = function(kb) {
+        active_slug("sentence_1500")
+        write_active_slug(data_dir, "sentence_1500")
+        knowledge_base(kb)
+        kb_ready(TRUE)
+        message("[BUILD] kb_ready = TRUE  active_slug = sentence_1500")
       }
     )
   })
@@ -536,10 +582,16 @@ app_server <- function(input, output, session) {
         )
 
         message("[BUILD]   Parsing PDF...")
-        text   <- parse_pdf(pdf_path)
+        text <- parse_pdf(pdf_path)
         message("[BUILD]   PDF parsed. Characters: ", nchar(text))
 
-        chunks <- chunk_text(text)
+        strategy   <- if (!is.null(state$strategy))   state$strategy   else "sentence"
+        chunk_size <- if (!is.null(state$chunk_size)) state$chunk_size else 1500L
+        chunks <- if (strategy == "sentence") {
+          chunk_text_sentence(text, chunk_size = chunk_size)
+        } else {
+          chunk_text(text, chunk_size = chunk_size)
+        }
         message("[BUILD]   Chunks created: ", length(chunks))
 
         message("[BUILD]   Embedding chunks via Ollama...")
@@ -558,8 +610,6 @@ app_server <- function(input, output, session) {
           build_state_rv(modifyList(state, list(results = new_results, idx = i + 1L)))
           message("[BUILD]   Scheduling next document (", i + 1L,
                   " / ", n_remaining, "): ", next_file)
-          # Update modal AFTER embedding completes so it flushes to browser
-          # before the next blocking operation starts
           session$sendCustomMessage("update_build_modal", list(
             step       = paste0("Embedding document ", n_completed + 1L,
                                 " of ", n_total, "\u2026"),
@@ -576,18 +626,18 @@ app_server <- function(input, output, session) {
             pct        = 100L
           ))
 
-          kb <- dplyr::bind_rows(new_results)
-          save_knowledge_base(kb, embeddings_path)
-          message("[BUILD] Knowledge base saved to: ", embeddings_path)
+          target_path <- state$target_path
+          kb          <- dplyr::bind_rows(new_results)
+          save_knowledge_base(kb, target_path)
+          message("[BUILD] Knowledge base saved to: ", target_path)
 
           clear_interim_cache(cache_dir)
           message("[BUILD] Interim cache cleared.")
 
           removeModal()
           build_state_rv(NULL)
-          knowledge_base(kb)
-          kb_ready(TRUE)
-          message("[BUILD] Build complete. kb_ready = TRUE")
+          if (!is.null(state$on_complete)) state$on_complete(kb)
+          message("[BUILD] Build complete.")
         }
       },
       error = function(e) {
@@ -604,5 +654,158 @@ app_server <- function(input, output, session) {
         })
       }
     )
+  })
+
+  # ── Config Tab ───────────────────────────────────────────────────────────────
+
+  # Reactive: refreshes whenever active_slug changes or a build completes
+  config_built_rv <- reactiveVal(built_combinations(data_dir))
+
+  # Refresh built combinations after a build completes (triggered via reactiveVal)
+  observe({
+    active_slug()  # take dependency so table updates when slug changes
+    config_built_rv(built_combinations(data_dir))
+  })
+
+  # Render the combinations table with radio buttons
+  output$config_combinations_table <- renderUI({
+    all_combs <- all_embedding_combinations()
+    built     <- config_built_rv()
+    current   <- active_slug()
+
+    rows <- lapply(seq_len(nrow(all_combs)), function(i) {
+      strat <- all_combs$strategy[i]
+      sz    <- all_combs$size[i]
+      sl    <- embedding_slug(strat, sz)
+      is_built <- any(built$strategy == strat & built$size == sz)
+
+      status_badge <- if (is_built) {
+        tags$span(class = "badge bg-success", "Built")
+      } else {
+        tags$span(class = "badge bg-secondary", "Not built")
+      }
+
+      active_indicator <- if (identical(sl, current)) {
+        tags$span(class = "badge bg-primary ms-1", "Active")
+      }
+
+      tags$tr(
+        tags$td(
+          radioButtons(
+            inputId  = paste0("config_radio_", sl),
+            label    = NULL,
+            choices  = setNames(sl, ""),
+            selected = if (is_built) character(0) else character(0)
+          ) |> tagAppendAttributes(style = "margin: 0; padding: 0;")
+        ),
+        tags$td(strat),
+        tags$td(as.character(sz)),
+        tags$td(status_badge, active_indicator)
+      )
+    })
+
+    # Simpler approach: use a single radioButtons group
+    built_slugs <- embedding_slug(built$strategy, built$size)
+    all_slugs   <- embedding_slug(all_combs$strategy, all_combs$size)
+
+    choices_list <- setNames(
+      as.list(all_slugs),
+      paste0(
+        all_combs$strategy, " / ", all_combs$size, " chars",
+        ifelse(all_slugs %in% built_slugs, " \u2713", " \u2013 not built"),
+        ifelse(all_slugs == current, " [active]", "")
+      )
+    )
+
+    tagList(
+      radioButtons(
+        inputId  = "config_selected_slug",
+        label    = NULL,
+        choices  = choices_list,
+        selected = if (!is.null(current)) current else if (length(built_slugs) > 0L) built_slugs[1L] else character(0)
+      ),
+      tags$p(
+        class = "text-muted small mt-1",
+        "Only built combinations can be activated. \u2713 = built on disk."
+      )
+    )
+  })
+
+  # Activate button: swap active KB
+  observeEvent(input$config_activate, {
+    slug <- input$config_selected_slug
+    if (is.null(slug)) return()
+
+    built <- config_built_rv()
+    built_slugs <- embedding_slug(built$strategy, built$size)
+
+    if (!(slug %in% built_slugs)) {
+      output$config_build_status <- renderUI({
+        tags$div(
+          class = "alert alert-warning mt-2 mb-0",
+          "That combination has not been built yet. Build it first, then activate."
+        )
+      })
+      return()
+    }
+
+    path <- file.path(data_dir, paste0("embeddings_", slug, ".rds"))
+    kb   <- load_knowledge_base(path)
+    knowledge_base(kb)
+    active_slug(slug)
+    write_active_slug(data_dir, slug)
+    chat_history(list())  # reset chat when switching KB
+
+    output$config_build_status <- renderUI({
+      tags$div(
+        class = "alert alert-success mt-2 mb-0",
+        paste0("Activated: ", slug, " \u2014 chat history cleared.")
+      )
+    })
+  })
+
+  # Config tab build button
+  observeEvent(input$config_build, {
+    strategy   <- input$config_build_strategy
+    chunk_size <- as.integer(input$config_build_size)
+    slug       <- embedding_slug(strategy, chunk_size)
+    target_path <- file.path(data_dir, paste0("embeddings_", slug, ".rds"))
+
+    output$config_build_status <- renderUI({
+      tags$div(class = "text-muted small mt-2", "Build started\u2026")
+    })
+
+    .start_build(
+      strategy    = strategy,
+      chunk_size  = chunk_size,
+      target_path = target_path,
+      on_complete = function(kb) {
+        config_built_rv(built_combinations(data_dir))
+        output$config_build_status <- renderUI({
+          tags$div(
+            class = "alert alert-success mt-2 mb-0",
+            paste0("Built: ", slug, ". Select it above and click Activate to use it.")
+          )
+        })
+      }
+    )
+  })
+
+  # ── Chat tab badge ────────────────────────────────────────────────────────────
+
+  output$chat_tab_label <- renderUI({
+    slug <- active_slug()
+    if (is.null(slug)) {
+      "Chat"
+    } else {
+      tagList(
+        "Chat ",
+        tags$span(
+          class = "badge bg-secondary ms-1",
+          style = "font-size: 0.65em; vertical-align: middle;",
+          paste0("KB: ", gsub("_", "\u00a0", slug))
+        )
+      )
+    }
   })
 }

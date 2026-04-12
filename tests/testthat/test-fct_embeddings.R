@@ -334,6 +334,85 @@ test_that("save then clear leaves no rds files but preserves cache_dir", {
   expect_length(list.files(cache_dir, pattern = "\\.rds$"), 0L)
 })
 
+# ── chunk_text_sentence ───────────────────────────────────────────────────────
+
+test_that("chunk_text_sentence returns a character vector", {
+  text   <- "First sentence. Second sentence. Third sentence."
+  result <- chunk_text_sentence(text, chunk_size = 100)
+  expect_type(result, "character")
+})
+
+test_that("chunk_text_sentence returns single chunk when text is shorter than target size", {
+  text   <- "Short text."
+  result <- chunk_text_sentence(text, chunk_size = 1000)
+  expect_length(result, 1)
+  expect_equal(result, text)
+})
+
+test_that("chunk_text_sentence handles empty input", {
+  expect_equal(chunk_text_sentence("", chunk_size = 500), character(0))
+})
+
+test_that("chunk_text_sentence handles NULL input", {
+  expect_equal(chunk_text_sentence(NULL, chunk_size = 500), character(0))
+})
+
+test_that("chunk_text_sentence never cuts mid-sentence", {
+  sentences <- c(
+    "Alpha is the first sentence here.",
+    "Beta is the second sentence here.",
+    "Gamma is the third sentence here.",
+    "Delta is the fourth sentence here.",
+    "Epsilon is the fifth sentence here."
+  )
+  text   <- paste(sentences, collapse = " ")
+  result <- chunk_text_sentence(text, chunk_size = 60)
+  for (chunk in result) {
+    expect_match(trimws(chunk), "[.!?]$")
+  }
+})
+
+test_that("chunk_text_sentence carries last sentence of previous chunk as overlap", {
+  sentences <- c(
+    "The quick brown fox.",
+    "Jumped over the lazy dog.",
+    "A stitch in time saves nine.",
+    "All that glitters is not gold."
+  )
+  text   <- paste(sentences, collapse = " ")
+  result <- chunk_text_sentence(text, chunk_size = 50)
+  if (length(result) >= 2L) {
+    # Split chunk 1 into sentences; the last one should start chunk 2
+    sents_in_chunk1 <- strsplit(result[[1L]], "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
+    last_sent       <- trimws(tail(sents_in_chunk1, 1L))
+    expect_true(startsWith(trimws(result[[2L]]), last_sent))
+  }
+})
+
+test_that("chunk_text_sentence handles text with a single very long sentence", {
+  long_sentence <- paste0(paste(rep("word", 500), collapse = " "), ".")
+  result        <- chunk_text_sentence(long_sentence, chunk_size = 100)
+  expect_length(result, 1)
+  expect_equal(result, long_sentence)
+})
+
+test_that("chunk_text_sentence handles text with many short sentences", {
+  sentences <- paste0("Sentence ", seq_len(20), ".")
+  text      <- paste(sentences, collapse = " ")
+  result    <- chunk_text_sentence(text, chunk_size = 60)
+  expect_true(length(result) > 1L)
+})
+
+test_that("chunk_text_sentence all chunks end at sentence boundaries", {
+  sentences <- paste0("Word number ", seq_len(10), " ends here.")
+  text      <- paste(sentences, collapse = " ")
+  result    <- chunk_text_sentence(text, chunk_size = 50)
+  for (chunk in result) {
+    expect_match(trimws(chunk), "[.!?]$")
+  }
+})
+
+
 # ── build_knowledge_base ──────────────────────────────────────────────────────
 
 test_that("build_knowledge_base returns a tibble with required columns", {
