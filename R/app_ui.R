@@ -81,6 +81,15 @@ golem_add_external_resources <- function() {
         document.body.classList.remove('modal-open');
         document.body.style.removeProperty('overflow');
         document.body.style.removeProperty('padding-right');
+      });
+      // Update build-progress modal content in place (no close/reopen flicker)
+      Shiny.addCustomMessageHandler('update_build_modal', function(msg) {
+        var s = document.getElementById('build-modal-step');
+        var c = document.getElementById('build-modal-count');
+        var p = document.getElementById('build-modal-progress');
+        if (s) s.textContent = msg.step;
+        if (c) c.textContent = msg.count_line;
+        if (p) p.style.width = msg.pct + '%';
       });"
     ))
   )
@@ -189,12 +198,16 @@ welcome_screen_ui <- function(checks = NULL) {
 build_kb_modal_ui <- function(n, current, saving = FALSE, filename = NULL, debug = TRUE) {
   pct <- if (n > 0L) round(current / n * 100L) else 0L
 
+  # current  = number of documents fully embedded so far
+  # active   = document number currently being processed (current + 1)
+  active <- current + 1L
+
   step <- if (saving) {
     "Saving knowledge base\u2026"
-  } else if (current == 0L) {
+  } else if (current == 0L && is.null(filename)) {
     "Preparing\u2026"
   } else {
-    paste0("Embedding document ", current, " of ", n, "\u2026")
+    paste0("Embedding document ", active, " of ", n, "\u2026")
   }
 
   count_line <- if (saving) {
@@ -233,14 +246,15 @@ build_kb_modal_ui <- function(n, current, saving = FALSE, filename = NULL, debug
         role  = "status"
       ),
 
-      tags$p(class = "fw-semibold mb-1", step),
+      tags$p(id = "build-modal-step", class = "fw-semibold mb-1", step),
 
-      tags$p(class = "text-muted small mb-3", count_line),
+      tags$p(id = "build-modal-count", class = "text-muted small mb-3", count_line),
 
       tags$div(
         class = "progress mx-auto",
         style = "max-width: 320px;",
         tags$div(
+          id    = "build-modal-progress",
           class = "progress-bar bg-primary",
           style = paste0("width: ", pct, "%"),
           role  = "progressbar"

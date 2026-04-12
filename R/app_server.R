@@ -510,10 +510,16 @@ app_server <- function(input, output, session) {
     message("[BUILD] Processing document ", i, " / ", n_remaining,
             " remaining (", n_done, " / ", n_total, " total): ", filename)
 
-    showModal(build_kb_modal_ui(
-      n        = n_total,
-      current  = n_done,
-      filename = filename
+    # Update modal content in place — avoids Bootstrap 5 close/reopen flicker
+    pct        <- if (n_total > 0L) round(n_done / n_total * 100L) else 0L
+    active     <- n_done + 1L
+    step_text  <- paste0("Embedding document ", active, " of ", n_total, "\u2026")
+    count_text <- paste0(n_done, " of ", n_total,
+                         " embedded \u2014 processing: ", filename)
+    session$sendCustomMessage("update_build_modal", list(
+      step      = step_text,
+      count_line = count_text,
+      pct       = pct
     ))
 
     tryCatch(
@@ -556,7 +562,11 @@ app_server <- function(input, output, session) {
           session$sendCustomMessage("trigger_next_doc", list(delay = 50L))
         } else {
           message("[BUILD] All ", n_total, " documents embedded. Saving knowledge base...")
-          showModal(build_kb_modal_ui(n = n_total, current = n_total, saving = TRUE))
+          session$sendCustomMessage("update_build_modal", list(
+            step       = "Saving knowledge base\u2026",
+            count_line = "Almost done\u2026",
+            pct        = 100L
+          ))
 
           kb <- dplyr::bind_rows(new_results)
           save_knowledge_base(kb, embeddings_path)
