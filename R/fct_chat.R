@@ -48,12 +48,18 @@ chat_bubble_ui <- function(role, content) {
   label          <- if (role == "user") "You" else "Assistant"
   wrapper_class  <- if (role == "user") "d-flex justify-content-end mb-3" else "d-flex justify-content-start mb-3"
 
+  rendered_content <- if (role == "assistant") {
+    HTML(commonmark::markdown_html(content))
+  } else {
+    content
+  }
+
   tags$div(
     class = wrapper_class,
     tags$div(
       class = paste("chat-bubble", bubble_class),
       tags$div(class = "chat-bubble-label small fw-semibold mb-1", label),
-      tags$div(class = "chat-bubble-content", content)
+      tags$div(class = "chat-bubble-content", rendered_content)
     )
   )
 }

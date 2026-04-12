@@ -7,6 +7,7 @@ Description: chatRAG is a lightweight demo of a Retrieval-Augmented Generation (
 License: MIT + file LICENSE
 Imports:
     bslib,
+    commonmark,
     config,
     dplyr,
     DT,
