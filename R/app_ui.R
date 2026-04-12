@@ -162,18 +162,35 @@ welcome_screen_ui <- function(checks = NULL) {
 
 #' Build the knowledge base build progress modal
 #'
-#' @param n_pdfs   Number of PDFs to be embedded.
-#' @param step     Current step label shown below the spinner.
+#' @param n        Total number of documents to embed.
+#' @param current  Number of documents embedded so far (0 = not yet started).
+#' @param saving   If TRUE show "Saving..." state instead of embedding state.
 #'
 #' @noRd
-build_kb_modal_ui <- function(n_pdfs, step) {
-  est_mins <- max(1L, round(n_pdfs * 0.25))
+build_kb_modal_ui <- function(n, current, saving = FALSE) {
+  pct <- if (n > 0L) round(current / n * 100L) else 0L
+
+  step <- if (saving) {
+    "Saving knowledge base\u2026"
+  } else if (current == 0L) {
+    "Preparing\u2026"
+  } else {
+    paste0("Embedding document ", current, " of ", n, "\u2026")
+  }
+
+  count_line <- if (saving) {
+    "Almost done\u2026"
+  } else {
+    paste0(
+      current, " of ", n, " document", if (n == 1L) "" else "s", " embedded"
+    )
+  }
 
   modalDialog(
     title     = "Building Knowledge Base",
     size      = "m",
     easyClose = FALSE,
-    footer    = NULL,           # no dismiss button
+    footer    = NULL,
 
     tags$div(
       class = "text-center py-3",
@@ -186,25 +203,21 @@ build_kb_modal_ui <- function(n_pdfs, step) {
 
       tags$p(class = "fw-semibold mb-1", step),
 
-      tags$p(
-        class = "text-muted small mb-3",
-        paste0(
-          "Processing ", n_pdfs, " document",
-          if (n_pdfs == 1L) "" else "s",
-          " \u2014 this typically takes ",
-          if (est_mins == 1L) "around 1 minute" else paste0(est_mins, "\u2013", est_mins + 2L, " minutes"),
-          ". Please do not close the app."
-        )
-      ),
+      tags$p(class = "text-muted small mb-3", count_line),
 
       tags$div(
         class = "progress mx-auto",
         style = "max-width: 320px;",
         tags$div(
-          class = "progress-bar progress-bar-striped progress-bar-animated bg-primary",
-          style = "width: 100%",
+          class = "progress-bar bg-primary",
+          style = paste0("width: ", pct, "%"),
           role  = "progressbar"
         )
+      ),
+
+      tags$p(
+        class = "text-muted small mt-3 mb-0",
+        "Please do not close the app."
       )
     )
   )

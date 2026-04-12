@@ -391,38 +391,110 @@ app_server <- function(input, output, session) {
   })
 
   # ── Build Knowledge Base ─────────────────────────────────────────────────────
+
+  # State carried across per-document observer ticks
+  build_state_rv <- reactiveVal(NULL)
+
+  # Kick off the build: gather files, show modal, schedule first document
   observeEvent(input$build_kb, {
-    pdf_dir  <- app_sys("app/data/pdfs")
-    rds_path <- embeddings_path
+    pdf_dir   <- app_sys("app/data/pdfs")
+    pdf_files <- list.files(pdf_dir, pattern = "\\.pdf$",
+                            ignore.case = TRUE, full.names = TRUE,
+                            recursive = TRUE)
+    n <- length(pdf_files)
 
     tryCatch(
       {
-        pdf_files <- list.files(pdf_dir, pattern = "\\.pdf$",
-                                ignore.case = TRUE, full.names = TRUE,
-                                recursive = TRUE)
-        n_pdfs <- length(pdf_files)
+        docs_meta <- readr::read_csv(csv_path, show_col_types = FALSE)
 
-        showModal(build_kb_modal_ui(n_pdfs, "Parsing PDFs\u2026"))
+        showModal(build_kb_modal_ui(n = n, current = 0L))
 
-        kb <- build_knowledge_base(pdf_files, csv_path)
+        build_state_rv(list(
+          pdf_files = pdf_files,
+          docs_meta = docs_meta,
+          results   = list(),
+          idx       = 1L,
+          n         = n
+        ))
 
-        showModal(build_kb_modal_ui(n_pdfs, "Saving knowledge base\u2026"))
-
-        save_knowledge_base(kb, rds_path)
-
-        removeModal()
-        knowledge_base(kb)
-        kb_ready(TRUE)
+        # Yield to Shiny so the modal renders before embedding starts
+        shinyjs::delay(
+          100,
+          shinyjs::runjs(
+            "Shiny.setInputValue('process_next_doc', Math.random(), {priority: 'event'})"
+          )
+        )
       },
       error = function(e) {
         removeModal()
         output$build_progress <- renderUI({
           tagList(
             tags$hr(),
-            tags$p(
-              class = "text-danger small mt-2",
-              paste0("Build failed: ", conditionMessage(e))
+            tags$p(class = "text-danger small mt-2",
+                   paste0("Build failed: ", conditionMessage(e)))
+          )
+        })
+      }
+    )
+  })
+
+  # Process one document per tick so the modal updates between each
+  observeEvent(input$process_next_doc, {
+    state <- build_state_rv()
+    if (is.null(state)) return()
+
+    i        <- state$idx
+    n        <- state$n
+    pdf_path <- state$pdf_files[[i]]
+
+    showModal(build_kb_modal_ui(n = n, current = i - 1L))
+
+    tryCatch(
+      {
+        filename <- basename(pdf_path)
+        meta_row <- state$docs_meta[state$docs_meta$filename == filename, ]
+
+        doc_metadata <- list(
+          doc_title = meta_row$title,
+          doc_org   = meta_row$organisation,
+          doc_date  = as.character(meta_row$date),
+          doc_url   = meta_row$url
+        )
+
+        text   <- parse_pdf(pdf_path)
+        chunks <- chunk_text(text)
+        result <- embed_chunks(chunks, doc_metadata)
+
+        new_results <- c(state$results, list(result))
+
+        if (i < n) {
+          build_state_rv(modifyList(state, list(results = new_results, idx = i + 1L)))
+          shinyjs::delay(
+            50,
+            shinyjs::runjs(
+              "Shiny.setInputValue('process_next_doc', Math.random(), {priority: 'event'})"
             )
+          )
+        } else {
+          showModal(build_kb_modal_ui(n = n, current = n, saving = TRUE))
+
+          kb <- dplyr::bind_rows(new_results)
+          save_knowledge_base(kb, embeddings_path)
+
+          removeModal()
+          build_state_rv(NULL)
+          knowledge_base(kb)
+          kb_ready(TRUE)
+        }
+      },
+      error = function(e) {
+        removeModal()
+        build_state_rv(NULL)
+        output$build_progress <- renderUI({
+          tagList(
+            tags$hr(),
+            tags$p(class = "text-danger small mt-2",
+                   paste0("Build failed: ", conditionMessage(e)))
           )
         })
       }

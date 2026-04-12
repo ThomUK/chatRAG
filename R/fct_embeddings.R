@@ -13,19 +13,18 @@
 }
 
 #' @noRd
-.call_ollama_embed <- function(chunks) {
-  response <- ollamar::embed("nomic-embed-text", chunks)
+.call_ollama_embed_one <- function(chunk) {
+  response <- ollamar::embed("nomic-embed-text", chunk)
 
-  # ollamar::embed() return shape varies by version:
-  #   - data frame with an 'embeddings' list column  (most versions)
-  #   - numeric matrix, one embedding per row        (some versions)
-  #   - list with an $embeddings element             (raw-ish versions)
-  embeddings <- if (is.data.frame(response)) {
-    response$embeddings
+  # Extract a single embedding vector regardless of ollamar version/return shape
+  emb <- if (is.data.frame(response) && !is.null(response$embeddings)) {
+    response$embeddings[[1L]]
   } else if (is.matrix(response)) {
-    lapply(seq_len(nrow(response)), function(i) as.numeric(response[i, ]))
+    response[1L, ]
   } else if (is.list(response) && !is.null(response$embeddings)) {
-    response$embeddings
+    response$embeddings[[1L]]
+  } else if (is.numeric(response)) {
+    response
   } else {
     stop(
       "Unexpected response from ollamar::embed(). ",
@@ -34,13 +33,12 @@
     )
   }
 
-  # If the embeddings column is itself a matrix (wide data frame variant),
-  # convert to a plain list of vectors so tibble() can store it as a list column
-  if (is.matrix(embeddings)) {
-    lapply(seq_len(nrow(embeddings)), function(i) as.numeric(embeddings[i, ]))
-  } else {
-    embeddings
-  }
+  as.numeric(emb)
+}
+
+#' @noRd
+.call_ollama_embed <- function(chunks) {
+  lapply(chunks, .call_ollama_embed_one)
 }
 
 #' @noRd
