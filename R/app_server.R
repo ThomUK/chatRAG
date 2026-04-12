@@ -392,6 +392,8 @@ app_server <- function(input, output, session) {
 
   # ── Build Knowledge Base ─────────────────────────────────────────────────────
 
+  cache_dir <- app_sys("app/data/embeddings_cache")
+
   # State carried across per-document observer ticks
   build_state_rv <- reactiveVal(NULL)
 
@@ -402,17 +404,17 @@ app_server <- function(input, output, session) {
     removeModal()
   })
 
-  # Kick off the build: gather files, show modal, schedule first document
+  # Kick off the build: load any cached results, queue only uncached PDFs
   observeEvent(input$build_kb, {
     pdf_dir   <- app_sys("app/data/pdfs")
     pdf_files <- list.files(pdf_dir, pattern = "\\.pdf$",
                             ignore.case = TRUE, full.names = TRUE,
                             recursive = TRUE)
-    n <- length(pdf_files)
+    n_total <- length(pdf_files)
 
-    message("[BUILD] Build triggered. PDFs found: ", n)
+    message("[BUILD] Build triggered. PDFs found: ", n_total)
     message("[BUILD] PDF directory: ", pdf_dir)
-    if (n > 0L) {
+    if (n_total > 0L) {
       message("[BUILD] Files: ", paste(basename(pdf_files), collapse = ", "))
     }
 
@@ -421,18 +423,57 @@ app_server <- function(input, output, session) {
         docs_meta <- readr::read_csv(csv_path, show_col_types = FALSE)
         message("[BUILD] documents.csv loaded: ", nrow(docs_meta), " rows")
 
-        showModal(build_kb_modal_ui(n = n, current = 0L))
+        # Load any previously cached interim results
+        cached_results  <- list()
+        uncached_files  <- character(0)
+
+        for (pdf_path in pdf_files) {
+          cached <- load_interim_embedding(cache_dir, basename(pdf_path))
+          if (!is.null(cached)) {
+            cached_results <- c(cached_results, list(cached))
+            message("[BUILD]   Cache hit: ", basename(pdf_path),
+                    " (", nrow(cached), " chunks)")
+          } else {
+            uncached_files <- c(uncached_files, pdf_path)
+          }
+        }
+
+        n_cached    <- length(cached_results)
+        n_remaining <- length(uncached_files)
+        message("[BUILD] Cached: ", n_cached, " / ", n_total,
+                "  —  remaining: ", n_remaining)
+
+        showModal(build_kb_modal_ui(
+          n       = n_total,
+          current = n_cached,
+          filename = if (n_remaining > 0L) basename(uncached_files[[1L]]) else NULL
+        ))
         message("[BUILD] Modal shown. Scheduling first document tick...")
 
+        if (n_remaining == 0L) {
+          # Everything is cached — go straight to saving
+          message("[BUILD] All documents already cached. Saving knowledge base...")
+          showModal(build_kb_modal_ui(n = n_total, current = n_total, saving = TRUE))
+          kb <- dplyr::bind_rows(cached_results)
+          save_knowledge_base(kb, embeddings_path)
+          clear_interim_cache(cache_dir)
+          message("[BUILD] Knowledge base saved. Cache cleared.")
+          removeModal()
+          knowledge_base(kb)
+          kb_ready(TRUE)
+          message("[BUILD] Build complete. kb_ready = TRUE")
+          return()
+        }
+
         build_state_rv(list(
-          pdf_files = pdf_files,
-          docs_meta = docs_meta,
-          results   = list(),
-          idx       = 1L,
-          n         = n
+          pdf_files   = uncached_files,
+          docs_meta   = docs_meta,
+          results     = cached_results,
+          idx         = 1L,
+          n_remaining = n_remaining,
+          n_total     = n_total
         ))
 
-        # Use sendCustomMessage so the JS handler fires AFTER the modal renders
         session$sendCustomMessage("trigger_next_doc", list(delay = 100L))
         message("[BUILD] trigger_next_doc message sent to browser")
       },
@@ -458,14 +499,21 @@ app_server <- function(input, output, session) {
       return()
     }
 
-    i        <- state$idx
-    n        <- state$n
-    pdf_path <- state$pdf_files[[i]]
-    filename <- basename(pdf_path)
+    i           <- state$idx
+    n_remaining <- state$n_remaining
+    n_total     <- state$n_total
+    n_done      <- length(state$results)   # cached + embedded this session
+    pdf_path    <- state$pdf_files[[i]]
+    filename    <- basename(pdf_path)
 
-    message("[BUILD] Processing document ", i, " / ", n, ": ", filename)
+    message("[BUILD] Processing document ", i, " / ", n_remaining,
+            " remaining (", n_done, " / ", n_total, " total): ", filename)
 
-    showModal(build_kb_modal_ui(n = n, current = i - 1L, filename = filename))
+    showModal(build_kb_modal_ui(
+      n        = n_total,
+      current  = n_done,
+      filename = filename
+    ))
 
     tryCatch(
       {
@@ -493,19 +541,28 @@ app_server <- function(input, output, session) {
         result <- embed_chunks(chunks, doc_metadata)
         message("[BUILD]   Embedding complete. Rows: ", nrow(result))
 
+        # Persist immediately so progress survives a crash/restart
+        save_interim_embedding(result, cache_dir, filename)
+        message("[BUILD]   Interim cache saved: ", filename)
+
         new_results <- c(state$results, list(result))
 
-        if (i < n) {
+        if (i < n_remaining) {
+          next_file <- basename(state$pdf_files[[i + 1L]])
           build_state_rv(modifyList(state, list(results = new_results, idx = i + 1L)))
-          message("[BUILD]   Scheduling next document (", i + 1L, " / ", n, ")...")
+          message("[BUILD]   Scheduling next document (", i + 1L,
+                  " / ", n_remaining, "): ", next_file)
           session$sendCustomMessage("trigger_next_doc", list(delay = 50L))
         } else {
-          message("[BUILD] All ", n, " documents embedded. Saving knowledge base...")
-          showModal(build_kb_modal_ui(n = n, current = n, saving = TRUE))
+          message("[BUILD] All ", n_total, " documents embedded. Saving knowledge base...")
+          showModal(build_kb_modal_ui(n = n_total, current = n_total, saving = TRUE))
 
           kb <- dplyr::bind_rows(new_results)
           save_knowledge_base(kb, embeddings_path)
           message("[BUILD] Knowledge base saved to: ", embeddings_path)
+
+          clear_interim_cache(cache_dir)
+          message("[BUILD] Interim cache cleared.")
 
           removeModal()
           build_state_rv(NULL)

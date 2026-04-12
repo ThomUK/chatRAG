@@ -201,6 +201,139 @@ test_that("append_to_knowledge_base increases row count", {
   expect_gt(nrow(result), nrow(existing_kb))
 })
 
+# ── interim embedding cache ───────────────────────────────────────────────────
+
+test_that("interim_cache_path returns an rds path inside cache_dir", {
+  path <- interim_cache_path("/some/cache", "report.pdf")
+  expect_equal(path, "/some/cache/report.rds")
+})
+
+test_that("interim_cache_path strips subdirectory from pdf_filename", {
+  path <- interim_cache_path("/cache", "subdir/report.pdf")
+  expect_equal(path, "/cache/report.rds")
+})
+
+test_that("save_interim_embedding writes a file", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+
+  result <- tibble::tibble(
+    chunk_text = "hello",
+    embedding  = list(c(0.1, 0.2)),
+    doc_title  = "T", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  save_interim_embedding(result, cache_dir, "doc.pdf")
+  expect_true(file.exists(file.path(cache_dir, "doc.rds")))
+})
+
+test_that("save_interim_embedding creates cache_dir if it does not exist", {
+  cache_dir <- file.path(tempdir(), paste0("newcache_", Sys.getpid()))
+  on.exit(unlink(cache_dir, recursive = TRUE))
+
+  result <- tibble::tibble(
+    chunk_text = "hello",
+    embedding  = list(c(0.1, 0.2)),
+    doc_title  = "T", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  expect_false(dir.exists(cache_dir))
+  save_interim_embedding(result, cache_dir, "doc.pdf")
+  expect_true(dir.exists(cache_dir))
+})
+
+test_that("load_interim_embedding returns NULL when no cache file exists", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+  dir.create(cache_dir)
+
+  result <- load_interim_embedding(cache_dir, "missing.pdf")
+  expect_null(result)
+})
+
+test_that("load_interim_embedding returns the saved tibble", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+
+  original <- tibble::tibble(
+    chunk_text = c("a", "b"),
+    embedding  = list(c(0.1, 0.2), c(0.3, 0.4)),
+    doc_title  = "T", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  save_interim_embedding(original, cache_dir, "doc.pdf")
+  loaded <- load_interim_embedding(cache_dir, "doc.pdf")
+
+  expect_equal(loaded$chunk_text, original$chunk_text)
+  expect_equal(nrow(loaded), 2L)
+})
+
+test_that("load_interim_embedding is the round-trip inverse of save_interim_embedding", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+
+  original <- tibble::tibble(
+    chunk_text = "round trip",
+    embedding  = list(c(1, 2, 3)),
+    doc_title  = "RT", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  save_interim_embedding(original, cache_dir, "rt.pdf")
+  expect_equal(load_interim_embedding(cache_dir, "rt.pdf"), original)
+})
+
+test_that("clear_interim_cache removes all rds files", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+  dir.create(cache_dir)
+
+  # Write two interim files
+  stub <- tibble::tibble(
+    chunk_text = "x", embedding = list(c(0.1)),
+    doc_title = "T", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  save_interim_embedding(stub, cache_dir, "a.pdf")
+  save_interim_embedding(stub, cache_dir, "b.pdf")
+  expect_length(list.files(cache_dir, pattern = "\\.rds$"), 2L)
+
+  clear_interim_cache(cache_dir)
+  expect_length(list.files(cache_dir, pattern = "\\.rds$"), 0L)
+})
+
+test_that("clear_interim_cache returns the paths it removed", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+
+  stub <- tibble::tibble(
+    chunk_text = "x", embedding = list(c(0.1)),
+    doc_title = "T", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  save_interim_embedding(stub, cache_dir, "a.pdf")
+  removed <- clear_interim_cache(cache_dir)
+  expect_length(removed, 1L)
+  expect_match(removed[[1L]], "a\\.rds$")
+})
+
+test_that("clear_interim_cache is a no-op on an empty directory", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+  dir.create(cache_dir)
+
+  expect_silent(clear_interim_cache(cache_dir))
+  expect_length(list.files(cache_dir), 0L)
+})
+
+test_that("save then clear leaves no rds files but preserves cache_dir", {
+  cache_dir <- tempfile()
+  on.exit(unlink(cache_dir, recursive = TRUE))
+
+  stub <- tibble::tibble(
+    chunk_text = "x", embedding = list(c(0.1)),
+    doc_title = "T", doc_org = "O", doc_date = "D", doc_url = "U"
+  )
+  save_interim_embedding(stub, cache_dir, "doc.pdf")
+  clear_interim_cache(cache_dir)
+
+  expect_true(dir.exists(cache_dir))
+  expect_length(list.files(cache_dir, pattern = "\\.rds$"), 0L)
+})
+
 # ── build_knowledge_base ──────────────────────────────────────────────────────
 
 test_that("build_knowledge_base returns a tibble with required columns", {

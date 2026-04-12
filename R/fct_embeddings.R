@@ -205,6 +205,65 @@ load_knowledge_base <- function(path) {
 }
 
 
+# ── Interim embedding cache ────────────────────────────────────────────────────
+
+#' Derive the interim cache path for a single PDF
+#'
+#' @param cache_dir  Directory used for interim `.rds` files.
+#' @param pdf_filename  Basename of the source PDF (e.g. `"report.pdf"`).
+#'
+#' @return Absolute path to the interim `.rds` file.
+#' @noRd
+interim_cache_path <- function(cache_dir, pdf_filename) {
+  stem <- tools::file_path_sans_ext(basename(pdf_filename))
+  file.path(cache_dir, paste0(stem, ".rds"))
+}
+
+
+#' Save one document's embedding result to the interim cache
+#'
+#' Creates `cache_dir` if it does not yet exist.
+#'
+#' @param result      Tibble returned by [embed_chunks()].
+#' @param cache_dir   Directory for interim `.rds` files.
+#' @param pdf_filename Basename of the source PDF.
+#'
+#' @return Invisibly returns the path written.
+#' @noRd
+save_interim_embedding <- function(result, cache_dir, pdf_filename) {
+  dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+  path <- interim_cache_path(cache_dir, pdf_filename)
+  saveRDS(result, file = path)
+  invisible(path)
+}
+
+
+#' Load a previously cached embedding result for one PDF
+#'
+#' @param cache_dir   Directory for interim `.rds` files.
+#' @param pdf_filename Basename of the source PDF.
+#'
+#' @return The cached tibble, or `NULL` if no cache file exists.
+#' @noRd
+load_interim_embedding <- function(cache_dir, pdf_filename) {
+  path <- interim_cache_path(cache_dir, pdf_filename)
+  if (file.exists(path)) readRDS(path) else NULL
+}
+
+
+#' Delete all `.rds` files in the interim cache directory
+#'
+#' @param cache_dir Directory to clear.
+#'
+#' @return Invisibly returns the paths removed.
+#' @noRd
+clear_interim_cache <- function(cache_dir) {
+  files <- list.files(cache_dir, pattern = "\\.rds$", full.names = TRUE)
+  if (length(files) > 0L) file.remove(files)
+  invisible(files)
+}
+
+
 #' Check whether the local Ollama server is running
 #'
 #' @return `TRUE` if Ollama responds on port 11434, `FALSE` otherwise.
