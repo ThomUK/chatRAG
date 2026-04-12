@@ -335,3 +335,38 @@ Status: COMPLETE (2026-04-12)
 - 2 tests skipped in CI environment (DT not installed); will pass in full env
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 2 | PASS 30 new tests
+
+## Issue #19: Config tab: activate KB + chat badge
+Status: COMPLETE (2026-04-12)
+
+### Changes made:
+- R/fct_embedding_config.R: Added format_kb_badge(slug)
+  - Converts slug like "sentence_1500" → "sentence · 1500" (U+00B7 middle dot)
+  - Returns NULL for NULL input
+- R/app_ui.R: Added config_combinations_table_ui(all_combs, built_combs, active_slug)
+  - Renders custom HTML radio group (id="config_selected_slug", class="shiny-input-radiogroup")
+  - Built combinations: enabled radio; not-built: disabled="disabled" attribute
+  - Pre-selects active_slug; falls back to first built slug if active_slug is NULL
+  - Shows "✓ = built on disk" legend text
+- R/app_server.R:
+  - output$config_combinations_table: replaced inline renderUI with call to config_combinations_table_ui()
+  - Added observe() that disables config_activate button when selected == active or not built
+    (shinyjs::disable/enable "config_activate")
+  - output$chat_tab_label: updated to use format_kb_badge(slug) → "KB: sentence · 1500"
+- tests/testthat/test-config_tab.R: 12 new TDD tests
+  - format_kb_badge: 5 tests (sentence_1500, char_500, sentence_2000, char_1000, NULL)
+  - config_combinations_table_ui: 7 tests (returns shiny tag, includes id, marks not-built as
+    disabled, does not disable built, pre-selects active slug, selects first built when NULL,
+    no checked radio when nothing built and NULL)
+
+### All 8 acceptance criteria met:
+1. Built rows have enabled radio; not-built rows have disabled radio ✅
+2. Currently active combination pre-selected on tab load ✅
+3. Clicking Activate swaps in-memory knowledge base ✅
+4. Clicking Activate writes slug to active_embedding.txt ✅
+5. Clicking Activate clears chat history ✅
+6. Chat badge shows "KB: sentence · 1500" format ✅
+7. Chat badge updates without page reload (driven by active_slug reactiveVal) ✅
+8. Activate button disabled when selected == already-active ✅
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 2 | PASS 42 (30 existing + 12 new)
