@@ -395,6 +395,13 @@ app_server <- function(input, output, session) {
   # State carried across per-document observer ticks
   build_state_rv <- reactiveVal(NULL)
 
+  # Cancel button (debug): clear state and close modal
+  observeEvent(input$cancel_build, {
+    message("[BUILD] Cancelled by user (debug cancel button)")
+    build_state_rv(NULL)
+    removeModal()
+  })
+
   # Kick off the build: gather files, show modal, schedule first document
   observeEvent(input$build_kb, {
     pdf_dir   <- app_sys("app/data/pdfs")
@@ -403,11 +410,19 @@ app_server <- function(input, output, session) {
                             recursive = TRUE)
     n <- length(pdf_files)
 
+    message("[BUILD] Build triggered. PDFs found: ", n)
+    message("[BUILD] PDF directory: ", pdf_dir)
+    if (n > 0L) {
+      message("[BUILD] Files: ", paste(basename(pdf_files), collapse = ", "))
+    }
+
     tryCatch(
       {
         docs_meta <- readr::read_csv(csv_path, show_col_types = FALSE)
+        message("[BUILD] documents.csv loaded: ", nrow(docs_meta), " rows")
 
         showModal(build_kb_modal_ui(n = n, current = 0L))
+        message("[BUILD] Modal shown. Scheduling first document tick...")
 
         build_state_rv(list(
           pdf_files = pdf_files,
@@ -417,15 +432,12 @@ app_server <- function(input, output, session) {
           n         = n
         ))
 
-        # Yield to Shiny so the modal renders before embedding starts
-        shinyjs::delay(
-          100,
-          shinyjs::runjs(
-            "Shiny.setInputValue('process_next_doc', Math.random(), {priority: 'event'})"
-          )
-        )
+        # Use sendCustomMessage so the JS handler fires AFTER the modal renders
+        session$sendCustomMessage("trigger_next_doc", list(delay = 100L))
+        message("[BUILD] trigger_next_doc message sent to browser")
       },
       error = function(e) {
+        message("[BUILD ERROR] Build initiation failed: ", conditionMessage(e))
         removeModal()
         output$build_progress <- renderUI({
           tagList(
@@ -441,18 +453,27 @@ app_server <- function(input, output, session) {
   # Process one document per tick so the modal updates between each
   observeEvent(input$process_next_doc, {
     state <- build_state_rv()
-    if (is.null(state)) return()
+    if (is.null(state)) {
+      message("[BUILD] process_next_doc fired but build_state_rv is NULL — ignoring")
+      return()
+    }
 
     i        <- state$idx
     n        <- state$n
     pdf_path <- state$pdf_files[[i]]
+    filename <- basename(pdf_path)
 
-    showModal(build_kb_modal_ui(n = n, current = i - 1L))
+    message("[BUILD] Processing document ", i, " / ", n, ": ", filename)
+
+    showModal(build_kb_modal_ui(n = n, current = i - 1L, filename = filename))
 
     tryCatch(
       {
-        filename <- basename(pdf_path)
         meta_row <- state$docs_meta[state$docs_meta$filename == filename, ]
+
+        if (nrow(meta_row) == 0L) {
+          stop("No matching row in documents.csv for file: ", filename)
+        }
 
         doc_metadata <- list(
           doc_title = meta_row$title,
@@ -461,40 +482,48 @@ app_server <- function(input, output, session) {
           doc_url   = meta_row$url
         )
 
+        message("[BUILD]   Parsing PDF...")
         text   <- parse_pdf(pdf_path)
+        message("[BUILD]   PDF parsed. Characters: ", nchar(text))
+
         chunks <- chunk_text(text)
+        message("[BUILD]   Chunks created: ", length(chunks))
+
+        message("[BUILD]   Embedding chunks via Ollama...")
         result <- embed_chunks(chunks, doc_metadata)
+        message("[BUILD]   Embedding complete. Rows: ", nrow(result))
 
         new_results <- c(state$results, list(result))
 
         if (i < n) {
           build_state_rv(modifyList(state, list(results = new_results, idx = i + 1L)))
-          shinyjs::delay(
-            50,
-            shinyjs::runjs(
-              "Shiny.setInputValue('process_next_doc', Math.random(), {priority: 'event'})"
-            )
-          )
+          message("[BUILD]   Scheduling next document (", i + 1L, " / ", n, ")...")
+          session$sendCustomMessage("trigger_next_doc", list(delay = 50L))
         } else {
+          message("[BUILD] All ", n, " documents embedded. Saving knowledge base...")
           showModal(build_kb_modal_ui(n = n, current = n, saving = TRUE))
 
           kb <- dplyr::bind_rows(new_results)
           save_knowledge_base(kb, embeddings_path)
+          message("[BUILD] Knowledge base saved to: ", embeddings_path)
 
           removeModal()
           build_state_rv(NULL)
           knowledge_base(kb)
           kb_ready(TRUE)
+          message("[BUILD] Build complete. kb_ready = TRUE")
         }
       },
       error = function(e) {
+        message("[BUILD ERROR] Failed on document ", i, " (", filename, "): ",
+                conditionMessage(e))
         removeModal()
         build_state_rv(NULL)
         output$build_progress <- renderUI({
           tagList(
             tags$hr(),
             tags$p(class = "text-danger small mt-2",
-                   paste0("Build failed: ", conditionMessage(e)))
+                   paste0("Build failed on '", filename, "': ", conditionMessage(e)))
           )
         })
       }

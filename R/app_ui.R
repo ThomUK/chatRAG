@@ -64,6 +64,12 @@ golem_add_external_resources <- function() {
             break;
           }
         }
+      });
+      // Trigger next document processing tick from server
+      Shiny.addCustomMessageHandler('trigger_next_doc', function(msg) {
+        setTimeout(function() {
+          Shiny.setInputValue('process_next_doc', Math.random(), {priority: 'event'});
+        }, msg.delay || 50);
       });"
     ))
   )
@@ -165,9 +171,11 @@ welcome_screen_ui <- function(checks = NULL) {
 #' @param n        Total number of documents to embed.
 #' @param current  Number of documents embedded so far (0 = not yet started).
 #' @param saving   If TRUE show "Saving..." state instead of embedding state.
+#' @param filename Filename of the document currently being embedded (optional).
+#' @param debug    If TRUE show a Cancel button to dismiss the modal (for debugging).
 #'
 #' @noRd
-build_kb_modal_ui <- function(n, current, saving = FALSE) {
+build_kb_modal_ui <- function(n, current, saving = FALSE, filename = NULL, debug = TRUE) {
   pct <- if (n > 0L) round(current / n * 100L) else 0L
 
   step <- if (saving) {
@@ -180,6 +188,8 @@ build_kb_modal_ui <- function(n, current, saving = FALSE) {
 
   count_line <- if (saving) {
     "Almost done\u2026"
+  } else if (!is.null(filename) && nchar(filename) > 0L) {
+    paste0(current, " of ", n, " embedded \u2014 processing: ", filename)
   } else {
     paste0(
       current, " of ", n, " document", if (n == 1L) "" else "s", " embedded"
@@ -190,7 +200,18 @@ build_kb_modal_ui <- function(n, current, saving = FALSE) {
     title     = "Building Knowledge Base",
     size      = "m",
     easyClose = FALSE,
-    footer    = NULL,
+    footer    = if (debug) {
+      tags$button(
+        type            = "button",
+        class           = "btn btn-sm btn-outline-secondary",
+        `data-dismiss`  = "modal",
+        `data-bs-dismiss` = "modal",
+        onclick         = "Shiny.setInputValue('cancel_build', Math.random(), {priority: 'event'})",
+        "Cancel (Debug)"
+      )
+    } else {
+      NULL
+    },
 
     tags$div(
       class = "text-center py-3",
