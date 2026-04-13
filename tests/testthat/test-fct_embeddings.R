@@ -50,6 +50,15 @@ test_that("chunk_text handles text that is an exact multiple of chunk_size with 
   expect_equal(result[2], "67890")
 })
 
+test_that("chunk_text default overlap is 100 not 50", {
+  # step = chunk_size - overlap = 500 - 100 = 400
+  # chunk 2 starts at char 401, ends at char 600 → 200 chars
+  # (if overlap were 50, step = 450, chunk 2 would be 150 chars)
+  text <- paste(rep("x", 600), collapse = "")
+  result <- chunk_text(text)
+  expect_equal(nchar(result[[2L]]), 200L)
+})
+
 # ── parse_pdf ─────────────────────────────────────────────────────────────────
 
 test_that("parse_pdf returns a single character string", {
@@ -513,6 +522,24 @@ test_that("chunk_text_sentence does not split on e.g. or etc.", {
   for (chunk in result) {
     expect_false(grepl("^apples", trimws(chunk)))
     expect_false(grepl("^are listed", trimws(chunk)))
+  }
+})
+
+test_that("chunk_text_sentence carries last two sentences of previous chunk as overlap", {
+  # With chunk_size=105, chunk 1 = Alpha+Beta+Gamma (101 chars).
+  # 2-sentence overlap: next chunk starts at Beta (second-to-last of chunk 1).
+  # 1-sentence overlap would start at Gamma instead.
+  sentences <- c(
+    "Alpha is the first sentence here.",  # 33 chars
+    "Beta is the second sentence here.",  # 33 chars
+    "Gamma is the third sentence here.",  # 33 chars
+    "Delta is the fourth sentence here.", # 34 chars
+    "Epsilon is the fifth sentence here." # 35 chars
+  )
+  text <- paste(sentences, collapse = " ")
+  result <- chunk_text_sentence(text, chunk_size = 105)
+  if (length(result) >= 2L) {
+    expect_true(startsWith(trimws(result[[2L]]), "Beta is the second sentence here."))
   }
 })
 

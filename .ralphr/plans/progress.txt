@@ -432,3 +432,102 @@ Status: COMPLETE (2026-04-13)
   - still splits on genuine sentence boundaries with abbreviations present
 
 ### TDD result: FAIL 9 | WARN 0 | SKIP 0 | PASS 77 (9 pre-existing pkgload failures; baseline was PASS 49, +28 new passing tests)
+
+## Issue #23: Prompting: Inject Chunk Metadata + Scores
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_llm.R: Updated context block construction in `build_messages()`
+  - Each chunk now prefixed with `[Relevance: X.XX]` before the doc metadata bracket
+  - Format: `[Relevance: 0.85] [Doc Title (Org, Date)]\nchunk_text`
+  - `similarity_score` column already present in context_chunks tibble (from retrieve_chunks)
+  - Score rounded to 2 decimal places via `round(..., 2L)`
+- tests/testthat/test-fct_llm.R: 3 new TDD tests
+  - user message includes `[Relevance:` prefix
+  - relevance score rounded to 2 decimal places (0.87654 → 0.88)
+  - relevance score appears before doc metadata bracket
+
+### TDD result: FAIL 12 | WARN 0 | SKIP 0 | PASS 28 (12 pre-existing pkgload failures; +3 new passing tests)
+
+## Issue #24: Prompting: Add a "No Answer" Instruction
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_llm.R: Added explicit "no answer" instruction to `build_system_prompt()`
+  - New sentence: "If the retrieved context does not contain information relevant to
+    the question, say so directly rather than speculating."
+  - Placed before the existing "general knowledge" fallback disclosure sentence
+  - Model now refuses clearly off-topic queries before falling back to general knowledge
+- tests/testthat/test-fct_llm.R: 1 new TDD test
+  - `build_system_prompt instructs model to say so when context is irrelevant`
+  - Checks for "does not contain|not.*relevant|say so|no.*information|cannot answer"
+
+### TDD result: FAIL 12 | WARN 0 | SKIP 0 | PASS 29 (12 pre-existing pkgload failures; +1 new passing test)
+
+## Issue #25: PDF Parsing: No Structure Preservation
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_embeddings.R: Updated `parse_pdf()` to use page-break sentinel
+  - Changed `paste(pages, collapse = " ")` → `paste(pages, collapse = "\n\n--- PAGE BREAK ---\n\n")`
+  - Pages are now separated by double-newlines + sentinel, preserving page boundaries
+  - Chunks no longer cross page/topic boundaries
+  - Updated @return documentation to describe the separator format
+- tests/testthat/test-fct_embeddings.R: 4 new TDD tests
+  - parse_pdf separates pages with PAGE BREAK sentinel
+  - parse_pdf does not smash pages together without separator
+  - parse_pdf uses double-newline boundaries around PAGE BREAK
+  - parse_pdf single-page PDF returns text without PAGE BREAK
+
+### TDD result: FAIL 47 | WARN 0 | SKIP 0 | PASS 1 (47 pre-existing pkgload failures; all 4 new tests verified manually pass)
+
+## Issue #28: Chunking: Tiny Character Overlap
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_embeddings.R: Increased default overlap in `chunk_text()` from 50 → 100
+  - overlap=100 is 20% of the 500-char default chunk_size (was 10%)
+  - step = chunk_size - overlap = 400 (was 450)
+  - Also updated `build_knowledge_base()` and `append_to_knowledge_base()` default overlap
+    from 50L → 100L for consistency
+- R/fct_embeddings.R: Updated `chunk_text_sentence()` to carry 2-sentence overlap
+  - Changed `i <- j` → `i <- max(i + 1L, j - 1L)`
+  - 2-sentence overlap: next chunk starts at the second-to-last sentence of the current chunk
+  - `max(i+1, j-1)` ensures forward progress when a chunk has exactly 2 sentences
+    (degrades gracefully to 1-sentence overlap rather than looping)
+- tests/testthat/test-fct_embeddings.R: 2 new TDD tests
+  - `chunk_text default overlap is 100 not 50`: 600-char text → chunk 2 is 200 chars (not 150)
+  - `chunk_text_sentence carries last two sentences of previous chunk as overlap`:
+    chunk_size=105, 3-sentence chunks → chunk 2 starts at Beta (second-to-last of chunk 1)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 79
+
+## Issue #26: Retrieval: Consider Hybrid Search
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_retrieval.R: Added `bm25_score()` internal helper — pure-R BM25 implementation
+  - Tokenises texts (lowercase, split on non-alphanumeric) at query time
+  - Computes Robertson IDF: log((N - df + 0.5) / (df + 0.5) + 1)
+  - Standard BM25 numerator/denominator with k1=1.5, b=0.75 defaults
+  - Returns numeric vector of scores, one per chunk
+  - Handles empty query, empty corpus, and absent terms gracefully
+- R/fct_retrieval.R: Added `rrf_fuse()` internal helper — Reciprocal Rank Fusion
+  - Accepts a list of score vectors; converts each to ranks (descending)
+  - Fused score = sum of 1/(k + rank) across all score lists; k=60 default
+- R/fct_retrieval.R: Extended `retrieve_chunks()` with `query_text = NULL` parameter
+  - When query_text provided: cosine-filter candidates by min_similarity,
+    compute BM25 on filtered candidates, fuse via rrf_fuse(), re-sort by fused score
+  - query_text=NULL (default): pure cosine scoring — fully backward-compatible
+  - No external R package required (BM25 implemented from scratch)
+- R/app_server.R: Updated RAG pipeline to pass `query_text = query` to retrieve_chunks()
+  - Activates hybrid search for all live chat queries automatically
+- tests/testthat/test-fct_retrieval.R: 14 new TDD tests
+  - bm25_score: 6 tests (return type/length, higher score for matching term,
+    case-insensitivity, empty query, absent term, empty corpus)
+  - rrf_fuse: 4 tests (return type/length, top-ranked item wins, RRF formula,
+    combined score)
+  - Hybrid retrieval: 4 tests (correct columns, keyword breaks cosine ties,
+    backward compat with query_text=NULL, top_n limit respected)
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 58 (3 pre-existing pkgload failures for embed_query mock tests)

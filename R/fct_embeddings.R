@@ -141,8 +141,11 @@ chunk_text_sentence <- function(text, chunk_size = 1500) {
     chunks <- c(chunks, paste(sentences[i:j], collapse = " "))
 
     if (j >= n) break
-    # Overlap: next chunk starts at the last sentence of the current chunk
-    i <- j
+    # Overlap: next chunk starts two sentences back (last two sentences of the
+    # current chunk are repeated in the next chunk).  max() ensures we always
+    # advance by at least one sentence, preventing an infinite loop when a chunk
+    # contains exactly two sentences.
+    i <- max(i + 1L, j - 1L)
   }
 
   chunks
@@ -158,7 +161,7 @@ chunk_text_sentence <- function(text, chunk_size = 1500) {
 #'
 #' @return A character vector of chunks, or `character(0)` for empty/NULL input.
 #' @noRd
-chunk_text <- function(text, chunk_size = 500, overlap = 50) {
+chunk_text <- function(text, chunk_size = 500, overlap = 100) {
   if (is.null(text) || length(text) == 0 || nchar(text) == 0) {
     return(character(0))
   }
@@ -239,7 +242,7 @@ build_knowledge_base <- function(pdf_paths,
                                  documents_csv_path,
                                  strategy   = "sentence",
                                  chunk_size = if (strategy == "sentence") 1500L else 500L,
-                                 overlap    = 50L) {
+                                 overlap    = 100L) {
   docs <- readr::read_csv(documents_csv_path, show_col_types = FALSE)
 
   results <- lapply(pdf_paths, function(pdf_path) {
@@ -285,7 +288,7 @@ append_to_knowledge_base <- function(existing_kb,
                                      doc_metadata,
                                      strategy   = "sentence",
                                      chunk_size = if (strategy == "sentence") 1500L else 500L,
-                                     overlap    = 50L) {
+                                     overlap    = 100L) {
   text <- parse_pdf(pdf_path)
   chunks <- if (strategy == "sentence") {
     chunk_text_sentence(text, chunk_size = chunk_size)
