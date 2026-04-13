@@ -107,6 +107,92 @@ app_server <- function(input, output, session) {
     )
   })
 
+  # ── Edit Metadata Modal ───────────────────────────────────────────────────────
+
+  # Open the edit modal when an Edit button in the source table is clicked
+  observeEvent(input$edit_row_idx, {
+    idx  <- as.integer(input$edit_row_idx)
+    docs <- documents_rv()
+    if (is.na(idx) || idx < 1L || idx > nrow(docs)) return()
+
+    row <- docs[idx, ]
+    showModal(edit_metadata_modal_ui(
+      title        = row$title,
+      organisation = row$organisation,
+      date         = row$date,
+      url          = row$url,
+      filename     = row$filename
+    ))
+  })
+
+  # Handle edit form submission
+  observeEvent(input$submit_edit, {
+    filename <- trimws(input$edit_filename)
+    new_title <- trimws(input$edit_title)
+    new_org   <- trimws(input$edit_org)
+    new_date  <- trimws(input$edit_date)
+    new_url   <- trimws(input$edit_url)
+
+    if (nchar(new_title) == 0L || nchar(new_org) == 0L ||
+        nchar(new_date) == 0L  || nchar(new_url) == 0L) {
+      output$edit_progress <- renderUI({
+        tags$div(class = "alert alert-danger mt-2 mb-0",
+                 "All fields are required.")
+      })
+      return()
+    }
+
+    tryCatch(
+      {
+        # Read old metadata before updating (needed to locate KB chunks)
+        docs_before <- documents_rv()
+        old_row     <- docs_before[docs_before$filename == filename, ]
+
+        # Update documents.csv
+        update_document_in_csv(
+          csv_path         = csv_path,
+          filename         = filename,
+          new_title        = new_title,
+          new_organisation = new_org,
+          new_date         = new_date,
+          new_url          = new_url
+        )
+
+        # Refresh documents reactive
+        documents_rv(load_documents_csv(csv_path))
+
+        # Update in-memory KB chunks if KB is loaded and the old row was found
+        if (!is.null(knowledge_base()) && nrow(old_row) > 0L) {
+          updated_kb <- update_kb_metadata(
+            kb        = knowledge_base(),
+            old_title = old_row$title,
+            old_org   = old_row$organisation,
+            old_date  = as.character(old_row$date),
+            old_url   = old_row$url,
+            new_title = new_title,
+            new_org   = new_org,
+            new_date  = new_date,
+            new_url   = new_url
+          )
+          save_knowledge_base(updated_kb, embeddings_path())
+          knowledge_base(updated_kb)
+        }
+
+        output$edit_progress <- renderUI({
+          tags$div(class = "alert alert-success mt-2 mb-0",
+                   "Metadata updated.")
+        })
+        shinyjs::delay(1000, removeModal())
+      },
+      error = function(e) {
+        output$edit_progress <- renderUI({
+          tags$div(class = "alert alert-danger mt-2 mb-0",
+                   paste0("Save failed: ", conditionMessage(e)))
+        })
+      }
+    )
+  })
+
   # ── Upload Modal ─────────────────────────────────────────────────────────────
 
   # Open the modal when the button is clicked

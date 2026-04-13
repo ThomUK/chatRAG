@@ -409,6 +409,60 @@ chat_tab_ui <- function() {
 }
 
 
+#' Build the Edit Metadata modal dialog
+#'
+#' Pre-fills a form with existing metadata for the selected document so the
+#' user can correct title, organisation, date, or URL.
+#'
+#' @param title        Current document title.
+#' @param organisation Current organisation.
+#' @param date         Current date string (YYYY-MM-DD).
+#' @param url          Current public URL.
+#' @param filename     PDF filename (used as the hidden row key).
+#'
+#' @noRd
+edit_metadata_modal_ui <- function(title, organisation, date, url, filename) {
+  modalDialog(
+    title     = "Edit Document Metadata",
+    size      = "m",
+    easyClose = FALSE,
+
+    tags$input(type = "hidden", id = "edit_filename", value = filename),
+    textInput(
+      inputId = "edit_title",
+      label   = "Title",
+      value   = title
+    ),
+    textInput(
+      inputId = "edit_org",
+      label   = "Organisation",
+      value   = organisation
+    ),
+    textInput(
+      inputId = "edit_date",
+      label   = "Date (YYYY-MM-DD)",
+      value   = date
+    ),
+    textInput(
+      inputId = "edit_url",
+      label   = "Public URL",
+      value   = url
+    ),
+
+    uiOutput("edit_progress"),
+
+    footer = tagList(
+      modalButton("Cancel"),
+      actionButton(
+        inputId = "submit_edit",
+        label   = "Save Changes",
+        class   = "btn btn-primary"
+      )
+    )
+  )
+}
+
+
 #' Build the Upload Modal dialog
 #'
 #' Returns a `modalDialog()` containing a PDF file input and metadata fields
