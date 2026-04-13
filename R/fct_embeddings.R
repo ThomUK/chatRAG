@@ -49,6 +49,53 @@
 }
 
 
+# Sentence splitting -----------------------------------------------------------
+
+#' Split text into sentences, correctly handling common abbreviations
+#'
+#' Uses an abbreviation-masking strategy so that titles (Dr., Mr., Mrs., etc.),
+#' acronyms (U.S.A., N.A.T.O.), and Latin abbreviations (e.g., i.e., etc.) do
+#' not create spurious sentence boundaries.
+#'
+#' @param text A single character string.
+#' @return A character vector of sentences.
+#' @noRd
+.split_sentences <- function(text) {
+  ph <- "\x01"  # SOH: non-printable placeholder, unlikely in real text
+
+  # 1. Protect single uppercase letters followed by a period (initials, acronyms)
+  #    Matches each letter-period pair inside acronyms like U.S.A., N.A.T.O.
+  #    The period must NOT be followed by a non-period, non-alpha character at
+  #    end of acronym — so we protect all single-uppercase + period occurrences.
+  text <- gsub("\\b([A-Z])\\.", paste0("\\1", ph), text, perl = TRUE)
+
+  # 2. Protect common English title abbreviations (case-sensitive list)
+  titles <- c("Mr", "Mrs", "Ms", "Dr", "Prof", "Sr", "Jr", "Rev",
+               "Lt", "Sgt", "Capt", "Maj", "Col", "Gen", "Cdr",
+               "Pres", "Gov", "Sen", "Rep", "Dept", "Corp", "Inc", "Ltd",
+               "Ave", "Blvd", "St", "Rd", "Mt")
+  for (ab in titles) {
+    text <- gsub(paste0("\\b", ab, "\\."), paste0(ab, ph), text, perl = TRUE)
+  }
+
+  # 3. Protect common lowercase abbreviations (e.g., i.e., etc., viz., cf.)
+  lower_abbrevs <- c("e\\.g", "i\\.e", "c\\.f", "viz", "etc", "approx",
+                     "est", "vol", "no", "pp", "fig", "cf")
+  for (ab in lower_abbrevs) {
+    text <- gsub(paste0("\\b", ab, "\\."), paste0(sub("\\\\.", ".", ab), ph),
+                 text, perl = TRUE)
+  }
+
+  # 4. Split on sentence-ending punctuation followed by whitespace + uppercase
+  #    (requiring uppercase after the break avoids spurious splits on decimal
+  #    numbers and other non-boundary periods)
+  sentences <- strsplit(text, "(?<=[.!?])\\s+(?=[A-Z\"])", perl = TRUE)[[1L]]
+
+  # 5. Restore placeholders
+  gsub(ph, ".", sentences, fixed = TRUE)
+}
+
+
 # Public API -------------------------------------------------------------------
 
 #' Split text into sentence-aware overlapping chunks
@@ -67,8 +114,7 @@ chunk_text_sentence <- function(text, chunk_size = 1500) {
     return(character(0))
   }
 
-  # Split at sentence-ending punctuation followed by whitespace
-  sentences <- strsplit(text, "(?<=[.!?])\\s+", perl = TRUE)[[1L]]
+  sentences <- .split_sentences(text)
   sentences <- sentences[nchar(trimws(sentences)) > 0L]
 
   if (length(sentences) == 0L) return(character(0))

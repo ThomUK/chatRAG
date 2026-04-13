@@ -412,6 +412,91 @@ test_that("chunk_text_sentence all chunks end at sentence boundaries", {
   }
 })
 
+# ── chunk_text_sentence: abbreviation handling ─────────────────────────────────
+
+test_that("chunk_text_sentence does not produce orphaned abbreviation fragments like 'Dr.'", {
+  # With a small chunk_size, the regex-based splitter incorrectly treats "Dr." as
+  # a sentence boundary, producing a fragment chunk containing just "Dr."
+  text <- paste(
+    "Dr. Smith presented the annual report.",
+    "The team reviewed it carefully.",
+    "Mr. Jones raised several concerns.",
+    "All points were noted for follow-up."
+  )
+  result <- chunk_text_sentence(text, chunk_size = 60)
+  # No chunk should be a bare abbreviation fragment
+  for (chunk in result) {
+    expect_false(grepl("^(Dr|Mr|Mrs|Ms|Prof)\\.$", trimws(chunk)))
+  }
+})
+
+test_that("chunk_text_sentence keeps 'Dr. Smith' together in the same chunk", {
+  text <- paste(
+    "Dr. Smith presented the annual report.",
+    "The team reviewed it carefully.",
+    "Mr. Jones raised several concerns.",
+    "All points were noted for follow-up."
+  )
+  result <- chunk_text_sentence(text, chunk_size = 60)
+  # "Dr. Smith" must appear together (not split across chunks)
+  combined <- paste(result, collapse = "\n")
+  expect_true(grepl("Dr. Smith", combined, fixed = TRUE))
+  # No chunk should start with "Smith" (orphaned from its "Dr.")
+  for (chunk in result) {
+    expect_false(grepl("^Smith", trimws(chunk)))
+  }
+})
+
+test_that("chunk_text_sentence does not split inside acronyms like U.S.A.", {
+  text <- paste(
+    "The policy applies across the U.S.A. and Canada.",
+    "Both countries agreed on the terms.",
+    "Implementation begins next quarter.",
+    "Details will follow in the annexe."
+  )
+  result <- chunk_text_sentence(text, chunk_size = 60)
+  # "U.S.A." must appear intact somewhere in the output
+  combined <- paste(result, collapse = "\n")
+  expect_true(grepl("U.S.A.", combined, fixed = TRUE))
+  # No chunk should start with a bare "A." or "S." fragment from the acronym
+  for (chunk in result) {
+    expect_false(grepl("^[A-Z]\\. and", trimws(chunk)))
+  }
+})
+
+test_that("chunk_text_sentence does not split on e.g. or etc.", {
+  text <- paste(
+    "Common items include e.g. apples and oranges.",
+    "Other products are also accepted.",
+    "Required accessories, etc. are listed below.",
+    "Please review the full catalogue."
+  )
+  result <- chunk_text_sentence(text, chunk_size = 60)
+  combined <- paste(result, collapse = "\n")
+  expect_true(grepl("e.g.", combined, fixed = TRUE))
+  expect_true(grepl("etc.", combined, fixed = TRUE))
+  # No chunk should start with a lowercase continuation after e.g. or etc.
+  for (chunk in result) {
+    expect_false(grepl("^apples", trimws(chunk)))
+    expect_false(grepl("^are listed", trimws(chunk)))
+  }
+})
+
+test_that("chunk_text_sentence still splits on genuine sentence boundaries with abbreviations present", {
+  text <- paste(
+    "Dr. Smith presented the U.S.A. data.",
+    "He noted that e.g. inflation was high.",
+    "Mr. Jones disagreed with the conclusion.",
+    "The meeting ended at five o'clock sharp."
+  )
+  result <- chunk_text_sentence(text, chunk_size = 50)
+  expect_true(length(result) >= 2L)
+  # Each chunk must end at a real sentence boundary
+  for (chunk in result) {
+    expect_match(trimws(chunk), "[.!?']$")
+  }
+})
+
 
 # ── build_knowledge_base ──────────────────────────────────────────────────────
 

@@ -370,3 +370,65 @@ Status: COMPLETE (2026-04-12)
 8. Activate button disabled when selected == already-active ✅
 
 ### TDD result: FAIL 0 | WARN 0 | SKIP 2 | PASS 42 (30 existing + 12 new)
+
+## Issue #21: Retrieval: Add MMR to Reduce Redundant Chunks
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_retrieval.R: Added `use_mmr = TRUE` and `lambda = 0.5` parameters to `retrieve_chunks()`
+  - Greedy MMR selection loop: first pick = highest query similarity; subsequent picks maximize
+    `lambda * query_sim - (1-lambda) * max_sim_to_selected`
+  - `use_mmr=FALSE` or empty candidates skips MMR (backward-compatible)
+  - `lambda=1` gives pure relevance (equivalent to original); `lambda=0` gives pure diversity
+  - Embedding column retained internally during MMR, dropped from returned tibble
+- tests/testthat/test-fct_retrieval.R: 7 new TDD tests for MMR behaviour
+  - use_mmr=FALSE returns pure-similarity ordered results
+  - MMR selects highest-similarity chunk first
+  - lambda=1 ranks by similarity score only (distinct scores)
+  - lambda=0.3 prefers diverse chunk over near-duplicate (A=B identical, C orthogonal → picks A then C)
+  - MMR respects top_n limit
+  - MMR result has correct columns and no embedding column
+  - MMR with empty candidates (after filter) returns correct empty data frame
+
+### TDD result: FAIL 3 | WARN 0 | SKIP 0 | PASS 37 (3 pre-existing pkgload failures)
+
+## Issue #20: Retrieval: Add a Similarity Threshold
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_retrieval.R: Added `min_similarity = 0.5` parameter to `retrieve_chunks()`
+  - Filter applied after ordering by score descending, before top_n slice
+  - Ensures chunks below threshold are never injected as context
+  - Default 0.5 matches the issue recommendation (0.4–0.6 range)
+- tests/testthat/test-fct_retrieval.R: 5 new TDD tests for threshold behaviour
+  - filters out chunks below min_similarity (only 1 of 4 orthogonal chunks returned)
+  - returns 0-row data frame when all chunks below threshold
+  - result columns correct even when empty
+  - min_similarity defaults to 0.5 (10-chunk KB returns 3, not 10)
+  - min_similarity=0 returns all chunks (backward compat)
+  - Updated 3 existing tests to pass min_similarity=0 explicitly
+
+### TDD result: FAIL 0 | WARN 0 | SKIP 0 | PASS 26 (3 pre-existing pkgload failures unrelated to this change)
+
+## Issue #22: Chunking: Sentence Splitter Breaks on Abbreviations
+Status: COMPLETE (2026-04-13)
+
+### Changes made:
+- R/fct_embeddings.R: Added `.split_sentences(text)` internal helper
+  - Uses abbreviation-masking strategy: replaces periods in abbreviations with
+    a non-printable SOH placeholder (\x01) before splitting, then restores them
+  - Protects single uppercase letter + period sequences (initials, acronyms: U.S.A., N.A.T.O.)
+  - Protects common English title abbreviations (Dr., Mr., Mrs., Ms., Prof., Sr., Jr., Rev., etc.)
+  - Protects common lowercase abbreviations (e.g., i.e., c.f., etc., approx., vol., no., pp.)
+  - Splits on sentence-ending punctuation followed by whitespace + uppercase letter
+    (this avoids false splits on decimal numbers and other non-boundary periods)
+  - `chunk_text_sentence()` now delegates sentence splitting to `.split_sentences()`
+    instead of using the naive `strsplit(text, "(?<=[.!?])\\s+", perl = TRUE)` regex
+- tests/testthat/test-fct_embeddings.R: 5 new TDD tests for abbreviation handling
+  - does not produce orphaned abbreviation fragments like 'Dr.' as a whole chunk
+  - keeps 'Dr. Smith' together (no chunk starting with bare 'Smith')
+  - does not split inside acronyms like U.S.A.
+  - does not split on e.g. or etc.
+  - still splits on genuine sentence boundaries with abbreviations present
+
+### TDD result: FAIL 9 | WARN 0 | SKIP 0 | PASS 77 (9 pre-existing pkgload failures; baseline was PASS 49, +28 new passing tests)
