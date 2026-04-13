@@ -70,6 +70,40 @@ test_that("parse_pdf concatenates pages into one string", {
   expect_match(result, "Page two")
 })
 
+test_that("parse_pdf separates pages with PAGE BREAK sentinel", {
+  local_mocked_bindings(
+    .call_pdf_text = function(pdf_path) c("Page one.", "Page two.")
+  )
+  result <- parse_pdf("dummy.pdf")
+  expect_match(result, "--- PAGE BREAK ---", fixed = TRUE)
+})
+
+test_that("parse_pdf does not smash pages together without separator", {
+  local_mocked_bindings(
+    .call_pdf_text = function(pdf_path) c("Page one.", "Page two.")
+  )
+  result <- parse_pdf("dummy.pdf")
+  expect_false(grepl("Page one\\.Page two", result))
+  expect_false(grepl("Page one\\. Page two", result))
+})
+
+test_that("parse_pdf uses double-newline boundaries around PAGE BREAK", {
+  local_mocked_bindings(
+    .call_pdf_text = function(pdf_path) c("First page.", "Second page.")
+  )
+  result <- parse_pdf("dummy.pdf")
+  expect_match(result, "First page\\.\n\n--- PAGE BREAK ---\n\nSecond page\\.")
+})
+
+test_that("parse_pdf single-page PDF returns text without PAGE BREAK", {
+  local_mocked_bindings(
+    .call_pdf_text = function(pdf_path) c("Only page text.")
+  )
+  result <- parse_pdf("dummy.pdf")
+  expect_false(grepl("PAGE BREAK", result))
+  expect_equal(result, "Only page text.")
+})
+
 # ── embed_chunks ──────────────────────────────────────────────────────────────
 
 test_that("embed_chunks returns a tibble with required columns", {

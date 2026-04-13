@@ -184,11 +184,13 @@ chunk_text <- function(text, chunk_size = 500, overlap = 50) {
 #'
 #' @param pdf_path Path to the PDF file.
 #'
-#' @return A single character string containing all page text concatenated.
+#' @return A single character string with pages separated by
+#'   `\n\n--- PAGE BREAK ---\n\n`, preserving page boundaries so that
+#'   chunks do not cross topic boundaries at page turns.
 #' @noRd
 parse_pdf <- function(pdf_path) {
   pages <- .call_pdf_text(pdf_path)
-  paste(pages, collapse = " ")
+  paste(pages, collapse = "\n\n--- PAGE BREAK ---\n\n")
 }
 
 
