@@ -298,3 +298,136 @@ test_that("retrieve_chunks MMR with empty candidates returns empty data frame", 
   expected_cols <- c("chunk_text", "doc_title", "doc_org", "doc_date", "doc_url", "similarity_score")
   expect_true(all(expected_cols %in% names(result)))
 })
+
+# ── bm25_score ────────────────────────────────────────────────────────────────
+
+test_that("bm25_score returns a numeric vector with one score per chunk", {
+  chunks <- c("the cat sat on the mat", "the dog ran in the park", "birds fly south")
+  result <- bm25_score("cat", chunks)
+  expect_type(result, "double")
+  expect_length(result, 3)
+})
+
+test_that("bm25_score gives higher score to chunk containing the query term", {
+  chunks <- c("the cat sat on the mat", "the dog ran in the park")
+  result <- bm25_score("cat", chunks)
+  expect_gt(result[1], result[2])
+})
+
+test_that("bm25_score is case-insensitive", {
+  chunks <- c("The Cat Sat", "the dog ran")
+  result_lower <- bm25_score("cat", chunks)
+  result_upper <- bm25_score("CAT", chunks)
+  expect_equal(result_lower, result_upper, tolerance = 1e-8)
+})
+
+test_that("bm25_score returns all-zero vector for empty query", {
+  chunks <- c("some text", "other text")
+  result <- bm25_score("", chunks)
+  expect_true(all(result == 0))
+})
+
+test_that("bm25_score returns all-zero vector for query term absent from all chunks", {
+  chunks <- c("apples and oranges", "bananas and grapes")
+  result <- bm25_score("zebra", chunks)
+  expect_equal(result, c(0, 0))
+})
+
+test_that("bm25_score returns zero vector when chunk_texts is empty character vector", {
+  result <- bm25_score("query", character(0))
+  expect_type(result, "double")
+  expect_length(result, 0)
+})
+
+# ── rrf_fuse ──────────────────────────────────────────────────────────────────
+
+test_that("rrf_fuse returns a numeric vector of same length as input scores", {
+  scores_a <- c(0.9, 0.5, 0.1)
+  scores_b <- c(0.8, 0.6, 0.2)
+  result <- rrf_fuse(list(scores_a, scores_b))
+  expect_type(result, "double")
+  expect_length(result, 3)
+})
+
+test_that("rrf_fuse gives highest score to item ranked first in both lists", {
+  # item 1 top in cosine, item 1 top in BM25 → should have highest fused score
+  cosine <- c(0.9, 0.5, 0.1)
+  bm25   <- c(10,  5,   1  )
+  result <- rrf_fuse(list(cosine, bm25))
+  expect_equal(which.max(result), 1L)
+})
+
+test_that("rrf_fuse with k=60 uses standard RRF formula", {
+  # Single list: top item gets 1/(60+1), second gets 1/(60+2)
+  scores <- c(0.9, 0.5, 0.1)
+  result <- rrf_fuse(list(scores), k = 60)
+  expect_equal(result[1], 1 / (60 + 1), tolerance = 1e-8)
+  expect_equal(result[2], 1 / (60 + 2), tolerance = 1e-8)
+  expect_equal(result[3], 1 / (60 + 3), tolerance = 1e-8)
+})
+
+test_that("rrf_fuse combines multiple score lists correctly", {
+  # Two identical orderings: item 1 is top in both → fused score = 2 * 1/(60+1)
+  scores <- c(0.9, 0.5, 0.1)
+  result <- rrf_fuse(list(scores, scores), k = 60)
+  expect_equal(result[1], 2 / 61, tolerance = 1e-8)
+})
+
+# ── Hybrid retrieval (query_text parameter) ───────────────────────────────────
+
+make_hybrid_kb <- function() {
+  tibble::tibble(
+    chunk_text = c(
+      "The Q3-2024-FIN report shows record profits for the finance division.",
+      "Employees should submit timesheets by Friday each week.",
+      "The Q3-2024-FIN audit was completed successfully with no issues."
+    ),
+    embedding = list(
+      c(1, 0, 0, 0),
+      c(1, 0, 0, 0),
+      c(1, 0, 0, 0)
+    ),
+    doc_title = c("Finance Report", "HR Policy", "Audit Summary"),
+    doc_org   = "Acme",
+    doc_date  = "2024-01-01",
+    doc_url   = c("http://a.com", "http://b.com", "http://c.com")
+  )
+}
+
+test_that("retrieve_chunks with query_text returns correct columns", {
+  kb    <- make_hybrid_kb()
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 3, min_similarity = 0,
+                            use_mmr = FALSE, query_text = "Q3-2024-FIN")
+  expected_cols <- c("chunk_text", "doc_title", "doc_org", "doc_date", "doc_url", "similarity_score")
+  expect_true(all(expected_cols %in% names(result)))
+  expect_false("embedding" %in% names(result))
+})
+
+test_that("retrieve_chunks hybrid ranks exact-match chunks above non-matching when cosine scores are equal", {
+  # All embeddings identical → cosine scores all equal → BM25 breaks the tie
+  kb    <- make_hybrid_kb()
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 3, min_similarity = 0,
+                            use_mmr = FALSE, query_text = "Q3-2024-FIN")
+  # Chunks 1 and 3 mention "Q3-2024-FIN"; chunk 2 (HR Policy) does not
+  expect_false(result$doc_title[1] == "HR Policy")
+})
+
+test_that("retrieve_chunks with query_text=NULL uses pure cosine (backward compat)", {
+  kb    <- make_hybrid_kb()
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 3, min_similarity = 0,
+                            use_mmr = FALSE, query_text = NULL)
+  expect_equal(nrow(result), 3)
+  # similarity_score should be raw cosine (all equal = 1 for identical embeddings)
+  expect_true(all(result$similarity_score == 1))
+})
+
+test_that("retrieve_chunks hybrid respects top_n limit", {
+  kb    <- make_hybrid_kb()
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 2, min_similarity = 0,
+                            use_mmr = FALSE, query_text = "report")
+  expect_equal(nrow(result), 2)
+})

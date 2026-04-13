@@ -318,7 +318,7 @@ app_server <- function(input, output, session) {
       {
         # RAG pipeline
         query_emb      <- embed_query(query)
-        context_chunks <- retrieve_chunks(query_emb, kb, top_n = 5L)
+        context_chunks <- retrieve_chunks(query_emb, kb, top_n = 5L, query_text = query)
         payload        <- build_messages(current_history, context_chunks, query)
 
         # Call LLM
