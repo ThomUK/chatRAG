@@ -103,14 +103,14 @@ test_that("retrieve_chunks returns a data frame", {
 test_that("retrieve_chunks returns top_n rows", {
   kb    <- make_fake_kb(10)
   query <- c(1, 0, 0, 0)
-  result <- retrieve_chunks(query, kb, top_n = 5)
+  result <- retrieve_chunks(query, kb, top_n = 5, min_similarity = 0)
   expect_equal(nrow(result), 5)
 })
 
 test_that("retrieve_chunks returns fewer rows than top_n when kb is smaller", {
   kb    <- make_fake_kb(3)
   query <- c(1, 0, 0, 0)
-  result <- retrieve_chunks(query, kb, top_n = 10)
+  result <- retrieve_chunks(query, kb, top_n = 10, min_similarity = 0)
   expect_equal(nrow(result), 3)
 })
 
@@ -155,7 +155,7 @@ test_that("retrieve_chunks similarity_score is numeric", {
 test_that("retrieve_chunks defaults top_n to 5", {
   kb    <- make_fake_kb(10)
   query <- c(1, 0, 0, 0)
-  result <- retrieve_chunks(query, kb)
+  result <- retrieve_chunks(query, kb, min_similarity = 0)
   expect_equal(nrow(result), 5)
 })
 
@@ -172,4 +172,52 @@ test_that("retrieve_chunks works with a single-row knowledge base", {
   result <- retrieve_chunks(query, kb, top_n = 5)
   expect_equal(nrow(result), 1)
   expect_equal(result$similarity_score, 1, tolerance = 1e-8)
+})
+
+# ── min_similarity threshold ──────────────────────────────────────────────────
+
+test_that("retrieve_chunks filters out chunks below min_similarity", {
+  # KB: chunk 1 aligns with query (score=1), rest are orthogonal (score=0)
+  kb    <- make_fake_kb(4)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 4, min_similarity = 0.5)
+  expect_equal(nrow(result), 1)
+  expect_equal(result$similarity_score, 1, tolerance = 1e-8)
+})
+
+test_that("retrieve_chunks returns 0-row data frame when all chunks below threshold", {
+  kb    <- make_fake_kb(4)
+  # query aligns with no chunk (45-degree angle to all basis vectors)
+  query <- c(0.5, 0.5, 0, 0)
+  # all scores = 0.5*0 + 0.5*0 ... actually this gives 0.5 for chunk 1 and 2
+  # use a query orthogonal to all: won't work with basis vectors
+  # instead, set threshold above 1 to guarantee zero results
+  result <- retrieve_chunks(query, kb, top_n = 4, min_similarity = 1.1)
+  expect_equal(nrow(result), 0)
+  expect_s3_class(result, "data.frame")
+})
+
+test_that("retrieve_chunks result has correct columns even when empty", {
+  kb    <- make_fake_kb(4)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 4, min_similarity = 1.1)
+  expected_cols <- c("chunk_text", "doc_title", "doc_org", "doc_date", "doc_url", "similarity_score")
+  expect_true(all(expected_cols %in% names(result)))
+})
+
+test_that("retrieve_chunks min_similarity defaults to 0.5", {
+  # make_fake_kb(10): chunks 1, 5, 9 have score=1 with query c(1,0,0,0)
+  # chunks 2,3,4,6,7,8,10 have score=0
+  # default min_similarity=0.5 should filter out score=0 chunks → 3 rows
+  kb    <- make_fake_kb(10)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 10)
+  expect_equal(nrow(result), 3)
+})
+
+test_that("retrieve_chunks min_similarity=0 returns all chunks (backward compat)", {
+  kb    <- make_fake_kb(10)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 5, min_similarity = 0)
+  expect_equal(nrow(result), 5)
 })

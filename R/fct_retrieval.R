@@ -44,7 +44,7 @@ embed_query <- function(query_text) {
 #'   `doc_date`, `doc_url`, and `similarity_score`, ordered from highest to
 #'   lowest similarity.
 #' @noRd
-retrieve_chunks <- function(query_embedding, knowledge_base, top_n = 5) {
+retrieve_chunks <- function(query_embedding, knowledge_base, top_n = 5, min_similarity = 0.5) {
   scores <- vapply(
     knowledge_base$embedding,
     function(emb) cosine_similarity(query_embedding, emb),
@@ -53,6 +53,7 @@ retrieve_chunks <- function(query_embedding, knowledge_base, top_n = 5) {
 
   knowledge_base$similarity_score <- scores
   result <- knowledge_base[order(scores, decreasing = TRUE), ]
+  result <- result[result$similarity_score >= min_similarity, ]
   result <- result[seq_len(min(top_n, nrow(result))), ]
 
   result[, c("chunk_text", "doc_title", "doc_org", "doc_date", "doc_url", "similarity_score")]
