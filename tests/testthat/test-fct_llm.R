@@ -137,6 +137,36 @@ test_that("build_messages last message is always role 'user'", {
   expect_equal(last$role, "user")
 })
 
+test_that("build_messages user message includes relevance score prefix", {
+  chunks <- make_chunks(1)
+  result <- build_messages(list(), chunks, "test")
+  user_content <- result$messages[[length(result$messages)]]$content
+  expect_true(grepl("[Relevance:", user_content, fixed = TRUE))
+})
+
+test_that("build_messages relevance score is rounded to 2 decimal places", {
+  chunks <- tibble::tibble(
+    chunk_text       = "test chunk",
+    doc_title        = "Doc",
+    doc_org          = "Org",
+    doc_date         = "2024-01-01",
+    doc_url          = "http://example.com",
+    similarity_score = 0.87654
+  )
+  result <- build_messages(list(), chunks, "test")
+  user_content <- result$messages[[length(result$messages)]]$content
+  expect_true(grepl("[Relevance: 0.88]", user_content, fixed = TRUE))
+})
+
+test_that("build_messages relevance score appears before doc metadata", {
+  chunks <- make_chunks(1)
+  result <- build_messages(list(), chunks, "test")
+  user_content <- result$messages[[length(result$messages)]]$content
+  rel_pos  <- regexpr("[Relevance:", user_content, fixed = TRUE)
+  meta_pos <- regexpr("[Doc 1", user_content, fixed = TRUE)
+  expect_true(rel_pos < meta_pos)
+})
+
 # ── call_llm ───────────────────────────────────────────────────────────────────
 
 make_messages_payload <- function() {

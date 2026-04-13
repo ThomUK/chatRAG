@@ -184,6 +184,7 @@ build_messages <- function(chat_history, context_chunks, user_query) {
   context_lines <- vapply(seq_len(nrow(context_chunks)), function(i) {
     row <- context_chunks[i, ]
     paste0(
+      "[Relevance: ", round(row$similarity_score, 2L), "] ",
       "[", row$doc_title, " (", row$doc_org, ", ", row$doc_date, ")]\n",
       row$chunk_text
     )
