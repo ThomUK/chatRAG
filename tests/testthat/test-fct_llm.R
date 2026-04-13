@@ -31,6 +31,14 @@ test_that("build_system_prompt references professional or boardroom tone", {
   )
 })
 
+test_that("build_system_prompt instructs model to say so when context is irrelevant", {
+  result <- build_system_prompt()
+  expect_true(
+    grepl("does not contain|not.*relevant|say so|no.*information|cannot answer",
+          result, ignore.case = TRUE)
+  )
+})
+
 # ── build_messages ─────────────────────────────────────────────────────────────
 
 make_history <- function(n_turns) {
