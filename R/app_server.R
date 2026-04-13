@@ -193,6 +193,77 @@ app_server <- function(input, output, session) {
     )
   })
 
+  # ── Remove Source Material ────────────────────────────────────────────────────
+
+  # Open the remove confirmation modal when a Remove button is clicked
+  observeEvent(input$remove_row_idx, {
+    idx  <- as.integer(input$remove_row_idx)
+    docs <- documents_rv()
+    if (is.na(idx) || idx < 1L || idx > nrow(docs)) return()
+
+    row <- docs[idx, ]
+    showModal(remove_confirmation_modal_ui(
+      title    = row$title,
+      filename = row$filename
+    ))
+  })
+
+  # Handle confirmed removal
+  observeEvent(input$confirm_remove, {
+    filename <- trimws(input$remove_filename)
+    if (nchar(filename) == 0L) return()
+
+    docs <- documents_rv()
+    row  <- docs[docs$filename == filename, ]
+    if (nrow(row) == 0L) {
+      output$remove_progress <- renderUI({
+        tags$div(class = "alert alert-danger mt-2 mb-0",
+                 "Document not found in catalogue.")
+      })
+      return()
+    }
+
+    tryCatch(
+      {
+        # Remove embeddings from in-memory KB
+        if (!is.null(knowledge_base()) && nrow(knowledge_base()) > 0L) {
+          updated_kb <- remove_source_material(
+            kb        = knowledge_base(),
+            doc_title = row$title,
+            doc_org   = row$organisation,
+            doc_date  = as.character(row$date),
+            doc_url   = row$url
+          )
+          save_knowledge_base(updated_kb, embeddings_path())
+          knowledge_base(updated_kb)
+        }
+
+        # Archive the PDF file (best-effort — don't fail if file is missing)
+        pdf_dir <- app_sys("app/data/pdfs")
+        tryCatch(
+          archive_pdf_file(pdf_dir, filename),
+          error = function(e) {
+            message("[REMOVE] PDF archive failed (continuing): ", conditionMessage(e))
+          }
+        )
+
+        # Remove metadata row from documents.csv
+        remove_document_from_csv(csv_path, filename)
+
+        # Refresh documents reactive
+        documents_rv(load_documents_csv(csv_path))
+
+        shinyjs::delay(800, removeModal())
+      },
+      error = function(e) {
+        output$remove_progress <- renderUI({
+          tags$div(class = "alert alert-danger mt-2 mb-0",
+                   paste0("Remove failed: ", conditionMessage(e)))
+        })
+      }
+    )
+  })
+
   # ── Upload Modal ─────────────────────────────────────────────────────────────
 
   # Open the modal when the button is clicked

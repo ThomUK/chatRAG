@@ -463,6 +463,43 @@ edit_metadata_modal_ui <- function(title, organisation, date, url, filename) {
 }
 
 
+#' Build the Remove Confirmation modal dialog
+#'
+#' @param title    Document title shown to the user.
+#' @param filename PDF filename (used as the hidden row key).
+#'
+#' @noRd
+remove_confirmation_modal_ui <- function(title, filename) {
+  modalDialog(
+    title     = "Remove Document",
+    size      = "s",
+    easyClose = FALSE,
+
+    tags$input(type = "hidden", id = "remove_filename", value = filename),
+    tags$p(
+      "Are you sure you want to remove ",
+      tags$strong(title),
+      " from the knowledge base?"
+    ),
+    tags$p(
+      class = "text-muted small mb-0",
+      "The PDF file will be moved to a 'removed' folder and its embeddings will be deleted."
+    ),
+
+    uiOutput("remove_progress"),
+
+    footer = tagList(
+      modalButton("Cancel"),
+      actionButton(
+        inputId = "confirm_remove",
+        label   = "Remove",
+        class   = "btn btn-danger"
+      )
+    )
+  )
+}
+
+
 #' Build the Upload Modal dialog
 #'
 #' Returns a `modalDialog()` containing a PDF file input and metadata fields

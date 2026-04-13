@@ -268,3 +268,203 @@ test_that("update_kb_metadata leaves non-matching chunks unchanged", {
   expect_equal(result$doc_title[2L], "Other Doc")
   expect_equal(result$doc_org[2L],   "Other Org")
 })
+
+# ── prepare_source_table remove button ────────────────────────────────────────
+
+test_that("prepare_source_table Actions column contains a Remove button", {
+  docs <- data.frame(
+    title        = "Annual Report",
+    organisation = "Org A",
+    date         = "2024-01-01",
+    url          = "https://example.com/a",
+    filename     = "a.pdf",
+    stringsAsFactors = FALSE
+  )
+
+  result <- prepare_source_table(docs)
+
+  expect_true(grepl("remove_row_idx", result$Actions[[1L]]))
+})
+
+test_that("prepare_source_table Remove button encodes correct row index", {
+  docs <- data.frame(
+    title        = c("Report A", "Report B"),
+    organisation = c("Org A", "Org B"),
+    date         = c("2024-01-01", "2024-02-01"),
+    url          = c("https://a.com", "https://b.com"),
+    filename     = c("a.pdf", "b.pdf"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- prepare_source_table(docs)
+
+  expect_true(grepl("remove_row_idx.*1", result$Actions[[1L]]))
+  expect_true(grepl("remove_row_idx.*2", result$Actions[[2L]]))
+})
+
+# ── remove_document_from_csv ──────────────────────────────────────────────────
+
+test_that("remove_document_from_csv removes the matching row by filename", {
+  tmp <- tempfile(fileext = ".csv")
+  on.exit(unlink(tmp))
+  writeLines(
+    paste0(
+      "title,organisation,date,url,filename\n",
+      "Report A,Org A,2024-01-01,https://a.com,a.pdf\n",
+      "Report B,Org B,2024-02-01,https://b.com,b.pdf"
+    ),
+    tmp
+  )
+
+  remove_document_from_csv(tmp, "a.pdf")
+
+  result <- readr::read_csv(tmp, show_col_types = FALSE)
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$filename, "b.pdf")
+})
+
+test_that("remove_document_from_csv returns csv_path invisibly", {
+  tmp <- tempfile(fileext = ".csv")
+  on.exit(unlink(tmp))
+  writeLines(
+    "title,organisation,date,url,filename\nReport,Org,2024-01-01,https://x.com,x.pdf",
+    tmp
+  )
+
+  result <- remove_document_from_csv(tmp, "x.pdf")
+  expect_equal(result, tmp)
+})
+
+test_that("remove_document_from_csv leaves other rows intact", {
+  tmp <- tempfile(fileext = ".csv")
+  on.exit(unlink(tmp))
+  writeLines(
+    paste0(
+      "title,organisation,date,url,filename\n",
+      "Report A,Org A,2024-01-01,https://a.com,a.pdf\n",
+      "Report B,Org B,2024-02-01,https://b.com,b.pdf\n",
+      "Report C,Org C,2024-03-01,https://c.com,c.pdf"
+    ),
+    tmp
+  )
+
+  remove_document_from_csv(tmp, "b.pdf")
+
+  result <- readr::read_csv(tmp, show_col_types = FALSE)
+  expect_equal(nrow(result), 2L)
+  expect_equal(result$filename, c("a.pdf", "c.pdf"))
+})
+
+test_that("remove_document_from_csv errors when filename not found", {
+  tmp <- tempfile(fileext = ".csv")
+  on.exit(unlink(tmp))
+  writeLines(
+    "title,organisation,date,url,filename\nReport,Org,2024-01-01,https://x.com,x.pdf",
+    tmp
+  )
+
+  expect_error(remove_document_from_csv(tmp, "missing.pdf"), "not found")
+})
+
+# ── remove_source_material ────────────────────────────────────────────────────
+
+test_that("remove_source_material removes chunks matching all four metadata fields", {
+  kb <- data.frame(
+    chunk_text = c("chunk1", "chunk2", "chunk3"),
+    doc_title  = c("Doc A", "Doc A", "Doc B"),
+    doc_org    = c("Org A", "Org A", "Org B"),
+    doc_date   = c("2024-01-01", "2024-01-01", "2024-02-01"),
+    doc_url    = c("https://a.com", "https://a.com", "https://b.com"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- remove_source_material(kb,
+    doc_title = "Doc A", doc_org = "Org A",
+    doc_date  = "2024-01-01", doc_url = "https://a.com"
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$chunk_text, "chunk3")
+})
+
+test_that("remove_source_material returns unchanged KB when no chunks match", {
+  kb <- data.frame(
+    chunk_text = c("chunk1", "chunk2"),
+    doc_title  = c("Doc A", "Doc B"),
+    doc_org    = c("Org A", "Org B"),
+    doc_date   = c("2024-01-01", "2024-02-01"),
+    doc_url    = c("https://a.com", "https://b.com"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- remove_source_material(kb,
+    doc_title = "Doc X", doc_org = "Org X",
+    doc_date  = "2025-01-01", doc_url = "https://x.com"
+  )
+
+  expect_equal(nrow(result), 2L)
+})
+
+test_that("remove_source_material returns 0-row KB when all chunks removed", {
+  kb <- data.frame(
+    chunk_text = c("chunk1", "chunk2"),
+    doc_title  = c("Doc A", "Doc A"),
+    doc_org    = c("Org A", "Org A"),
+    doc_date   = c("2024-01-01", "2024-01-01"),
+    doc_url    = c("https://a.com", "https://a.com"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- remove_source_material(kb,
+    doc_title = "Doc A", doc_org = "Org A",
+    doc_date  = "2024-01-01", doc_url = "https://a.com"
+  )
+
+  expect_equal(nrow(result), 0L)
+})
+
+# ── archive_pdf_file ──────────────────────────────────────────────────────────
+
+test_that("archive_pdf_file moves the file to the removed subfolder", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  writeLines("dummy pdf content", file.path(tmp_dir, "test.pdf"))
+
+  archive_pdf_file(tmp_dir, "test.pdf")
+
+  expect_false(file.exists(file.path(tmp_dir, "test.pdf")))
+  expect_true(file.exists(file.path(tmp_dir, "removed", "test.pdf")))
+})
+
+test_that("archive_pdf_file creates the removed subfolder if it does not exist", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  writeLines("content", file.path(tmp_dir, "doc.pdf"))
+
+  archive_pdf_file(tmp_dir, "doc.pdf")
+
+  expect_true(dir.exists(file.path(tmp_dir, "removed")))
+})
+
+test_that("archive_pdf_file returns the destination path invisibly", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  writeLines("content", file.path(tmp_dir, "doc.pdf"))
+
+  result <- archive_pdf_file(tmp_dir, "doc.pdf")
+  expect_equal(result, file.path(tmp_dir, "removed", "doc.pdf"))
+})
+
+test_that("archive_pdf_file errors when the source file does not exist", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  expect_error(archive_pdf_file(tmp_dir, "nonexistent.pdf"), "not found")
+})
