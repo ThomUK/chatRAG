@@ -221,3 +221,80 @@ test_that("retrieve_chunks min_similarity=0 returns all chunks (backward compat)
   result <- retrieve_chunks(query, kb, top_n = 5, min_similarity = 0)
   expect_equal(nrow(result), 5)
 })
+
+# ── MMR (Maximal Marginal Relevance) ──────────────────────────────────────────
+
+test_that("retrieve_chunks use_mmr=FALSE returns rows ordered by pure similarity", {
+  kb    <- make_fake_kb(4)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 4, min_similarity = 0, use_mmr = FALSE)
+  expect_true(all(diff(result$similarity_score) <= 0))
+  expect_equal(result$chunk_text[1], "chunk 1")
+})
+
+test_that("retrieve_chunks MMR selects highest-similarity chunk first", {
+  kb    <- make_fake_kb(4)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 2, min_similarity = 0, use_mmr = TRUE)
+  expect_equal(result$chunk_text[1], "chunk 1")
+})
+
+test_that("retrieve_chunks MMR with lambda=1 ranks by similarity score only", {
+  # All distinct scores, so lambda=1 (pure relevance) gives same order as non-MMR
+  query <- c(1, 0, 0, 0)
+  kb <- tibble::tibble(
+    chunk_text = c("high", "mid", "low"),
+    embedding  = list(
+      c(1, 0, 0, 0),
+      c(0.5, 0.866, 0, 0),
+      c(0.1, 0.995, 0, 0)
+    ),
+    doc_title = c("a", "b", "c"), doc_org = c("a", "b", "c"),
+    doc_date  = "2024-01-01",    doc_url  = c("a", "b", "c")
+  )
+  result <- retrieve_chunks(query, kb, top_n = 3, min_similarity = 0,
+                            use_mmr = TRUE, lambda = 1)
+  expect_equal(result$chunk_text, c("high", "mid", "low"))
+})
+
+test_that("retrieve_chunks MMR with low lambda prefers diverse chunk over near-duplicate", {
+  # A and B are identical (near-duplicates); C is orthogonal.
+  # lambda=0.3 (diversity-weighted): after picking A, MMR(B)=0.3-0.7=-0.4, MMR(C)=0
+  # so C is selected second instead of B.
+  query <- c(1, 0, 0, 0)
+  kb <- tibble::tibble(
+    chunk_text = c("A", "B", "C"),
+    embedding  = list(c(1, 0, 0, 0), c(1, 0, 0, 0), c(0, 1, 0, 0)),
+    doc_title  = c("a", "b", "c"), doc_org = c("a", "b", "c"),
+    doc_date   = "2024-01-01",     doc_url  = c("a", "b", "c")
+  )
+  result <- retrieve_chunks(query, kb, top_n = 2, min_similarity = 0,
+                            use_mmr = TRUE, lambda = 0.3)
+  expect_equal(result$chunk_text[1], "A")
+  expect_equal(result$chunk_text[2], "C")
+})
+
+test_that("retrieve_chunks MMR respects top_n limit", {
+  kb    <- make_fake_kb(10)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 3, min_similarity = 0, use_mmr = TRUE)
+  expect_equal(nrow(result), 3)
+})
+
+test_that("retrieve_chunks MMR returns correct columns", {
+  kb    <- make_fake_kb(4)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 2, min_similarity = 0, use_mmr = TRUE)
+  expected_cols <- c("chunk_text", "doc_title", "doc_org", "doc_date", "doc_url", "similarity_score")
+  expect_true(all(expected_cols %in% names(result)))
+  expect_false("embedding" %in% names(result))
+})
+
+test_that("retrieve_chunks MMR with empty candidates returns empty data frame", {
+  kb    <- make_fake_kb(4)
+  query <- c(1, 0, 0, 0)
+  result <- retrieve_chunks(query, kb, top_n = 4, min_similarity = 2, use_mmr = TRUE)
+  expect_equal(nrow(result), 0)
+  expected_cols <- c("chunk_text", "doc_title", "doc_org", "doc_date", "doc_url", "similarity_score")
+  expect_true(all(expected_cols %in% names(result)))
+})
