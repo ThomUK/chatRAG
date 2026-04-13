@@ -311,12 +311,17 @@ main_tabbed_ui <- function() {
       source_material_tab_ui()
     ),
     bslib::nav_panel(
-      "Chat",
+      title = uiOutput("chat_tab_label", inline = TRUE),
+      value = "Chat",
       chat_tab_ui()
     ),
     bslib::nav_panel(
       "Connect Your Own",
       connect_your_own_tab_ui()
+    ),
+    bslib::nav_panel(
+      "Config",
+      config_tab_ui()
     )
   )
 }
@@ -454,6 +459,152 @@ upload_modal_ui <- function() {
         label   = "Upload & Embed",
         class   = "btn btn-primary"
       )
+    )
+  )
+}
+
+
+#' Render the combinations radio group with disabled radios for not-built rows
+#'
+#' Returns a Shiny radio-group tag compatible with Shiny's input binding
+#' (id = `"config_selected_slug"`). Radio inputs for not-built combinations
+#' carry the `disabled` attribute; the active slug is pre-selected.
+#'
+#' @param all_combs   Output of `all_embedding_combinations()` — all 8 rows.
+#' @param built_combs Subset of `all_combs` that have `.rds` files on disk.
+#' @param active_slug Currently active slug string (e.g. `"sentence_1500"`),
+#'   or `NULL`.
+#'
+#' @return A `shiny.tag` suitable for use in `renderUI`.
+#' @noRd
+config_combinations_table_ui <- function(all_combs, built_combs, active_slug) {
+  all_slugs   <- embedding_slug(all_combs$strategy, all_combs$size)
+  built_slugs <- if (nrow(built_combs) > 0L) {
+    embedding_slug(built_combs$strategy, built_combs$size)
+  } else {
+    character(0)
+  }
+
+  # Determine which slug should be pre-selected
+  selected <- if (!is.null(active_slug) && active_slug %in% all_slugs) {
+    active_slug
+  } else if (length(built_slugs) > 0L) {
+    built_slugs[1L]
+  } else {
+    character(0)
+  }
+
+  option_items <- lapply(seq_along(all_slugs), function(i) {
+    sl        <- all_slugs[i]
+    is_built  <- sl %in% built_slugs
+    is_active <- identical(sl, active_slug)
+
+    label_text <- paste0(
+      all_combs$strategy[i], " / ", all_combs$size[i], " chars",
+      if (is_built) " \u2713" else " \u2013 not built",
+      if (is_active) " [active]" else ""
+    )
+
+    input_tag <- if (is_built) {
+      if (identical(sl, selected)) {
+        tags$input(type = "radio", name = "config_selected_slug",
+                   value = sl, checked = "checked")
+      } else {
+        tags$input(type = "radio", name = "config_selected_slug", value = sl)
+      }
+    } else {
+      tags$input(type = "radio", name = "config_selected_slug",
+                 value = sl, disabled = "disabled")
+    }
+
+    tags$div(
+      class = "radio",
+      tags$label(input_tag, tags$span(label_text))
+    )
+  })
+
+  tags$div(
+    id    = "config_selected_slug",
+    class = "form-group shiny-input-radiogroup",
+    tags$div(
+      class = "shiny-options-group",
+      tagList(option_items)
+    ),
+    tags$p(
+      class = "text-muted small mt-1",
+      "Only built combinations can be activated. \u2713 = built on disk."
+    )
+  )
+}
+
+
+#' Build the Config tab content
+#'
+#' Shows a table of all 8 strategy × size combinations with build status and
+#' radio-button selection, plus a build section and an Activate button.
+#'
+#' @noRd
+config_tab_ui <- function() {
+  tagList(
+    tags$div(
+      class = "mt-4",
+
+      tags$h5("Embedding Configuration", class = "fw-semibold mb-1"),
+      tags$p(
+        class = "text-muted small mb-4",
+        "Build and activate different embedding strategies.",
+        "The active knowledge base is used for all chat queries.",
+        "Switch configurations live to compare retrieval quality."
+      ),
+
+      # ── Combination status table ───────────────────────────────────────────
+      tags$h6("Available Combinations", class = "fw-semibold mb-2"),
+      uiOutput("config_combinations_table"),
+
+      tags$div(
+        class = "mt-3 mb-4",
+        actionButton(
+          inputId = "config_activate",
+          label   = "Activate Selected",
+          class   = "btn btn-primary btn-sm"
+        )
+      ),
+
+      tags$hr(),
+
+      # ── Build section ──────────────────────────────────────────────────────
+      tags$h6("Build a New Combination", class = "fw-semibold mb-2"),
+      tags$div(
+        class = "d-flex gap-2 align-items-end mb-3",
+        tags$div(
+          selectInput(
+            inputId  = "config_build_strategy",
+            label    = "Strategy",
+            choices  = c("sentence", "char"),
+            selected = "sentence",
+            width    = "150px"
+          )
+        ),
+        tags$div(
+          selectInput(
+            inputId  = "config_build_size",
+            label    = "Chunk Size",
+            choices  = c("500", "1000", "1500", "2000"),
+            selected = "1500",
+            width    = "130px"
+          )
+        ),
+        tags$div(
+          class = "mb-3",
+          actionButton(
+            inputId = "config_build",
+            label   = "Build",
+            class   = "btn btn-outline-primary btn-sm"
+          )
+        )
+      ),
+
+      uiOutput("config_build_status")
     )
   )
 }
